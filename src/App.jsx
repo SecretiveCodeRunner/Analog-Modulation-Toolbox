@@ -688,27 +688,107 @@ function AMToolbox({ onBack }) {
     {key:"msg",         label:"m(t) — Original Reference",           color:sigColor+"55", height:120},
   ],[showEnv,sigColor]);
 
+  // ── Sidebar JSX (shared between mobile drawer and desktop panel) ──
+  const sidebarJSX = (
+    <>
+      <div style={{marginBottom:14}}>
+        <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:8,fontWeight:"bold"}}>MODULATION MODE</div>
+        {[["dsbfc","DSB-FC","full carrier"],["dsbsc","DSB-SC","suppressed"],
+          ["ssb","SSB-USB","single side"],["vsb","VSB","vestigial"]].map(([v,abbr,desc])=>(
+          <button key={v} onClick={()=>setMode(v)} style={{
+            display:"block", width:"100%", marginBottom:5, textAlign:"left",
+            padding:"9px 12px", cursor:"pointer", borderRadius:8,
+            background:mode===v?"rgba(34,211,238,0.1)":"transparent",
+            border:`1px solid ${mode===v?"#22d3ee55":"#1e2a3a"}`,
+            color:mode===v?"#22d3ee":"#64748b",
+            fontSize:12, fontFamily:"monospace", fontWeight:600, transition:"all 0.15s",
+          }}>
+            <span style={{fontWeight:800}}>{abbr}</span>
+            <span style={{opacity:0.6, marginLeft:8, fontSize:11}}>{desc}</span>
+          </button>
+        ))}
+      </div>
+
+      <div style={{marginBottom:14}}>
+        <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:8,fontWeight:"bold"}}>TONE TYPE</div>
+        <div style={{display:"flex",gap:6}}>
+          {[["single","Single"],["double","Double"]].map(([v,l])=>(
+            <button key={v} onClick={()=>setTone(v)} style={{
+              flex:1, padding:"8px 4px", cursor:"pointer", borderRadius:8,
+              background:tone===v?"rgba(167,139,250,0.12)":"transparent",
+              border:`1px solid ${tone===v?"#a78bfa55":"#1e2a3a"}`,
+              color:tone===v?"#a78bfa":"#64748b",
+              fontSize:12, fontWeight:700, fontFamily:"monospace", transition:"all 0.15s",
+            }}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{marginBottom:14,background:"#0b0f1a",border:"1px solid #1e2a3a",borderRadius:8,padding:"10px 12px 8px"}}>
+        <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:8,fontWeight:"bold"}}>ANIMATION</div>
+        <Slider label="Scroll Speed" val={animSpeed} min={0} max={10} step={0.5} unit="×"
+          onChange={setAnimSpeed} color={animSpeed===0?"#fbbf24":"#4ade80"}/>
+        <div style={{fontSize:11,color:animSpeed===0?"#fbbf24":"#4ade80",marginTop:-2,marginBottom:4}}>
+          {animSpeed===0?"⏸ Frozen":`▶ Live  ${animSpeed}×`}
+        </div>
+      </div>
+
+      <div style={{borderTop:"1px solid #1e2a3a",paddingTop:12,marginBottom:8}}>
+        <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:8,fontWeight:"bold"}}>CARRIER</div>
+        <Slider label="Ac — Amplitude" val={Ac} min={0.5} max={5} step={0.1} unit=" V" onChange={setAc} color="#22d3ee"/>
+        <Slider label="fc — Frequency"  val={fc} min={2000} max={50000} step={500} unit=" Hz" onChange={setFc} color="#22d3ee"/>
+      </div>
+
+      <div style={{borderTop:"1px solid #1e2a3a",paddingTop:12,marginBottom:8}}>
+        <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:8,fontWeight:"bold"}}>MESSAGE 1</div>
+        <Slider label="Am₁ — Amplitude" val={Am1} min={0.1} max={5} step={0.1} unit=" V" onChange={setAm1} color="#f47266"/>
+        <Slider label="fm₁ — Frequency"  val={fm1} min={100} max={5000} step={50} unit=" Hz" onChange={setFm1} color="#f47266"/>
+        {mode==="dsbfc"&&<Slider label="μ₁ — Mod. Index" val={mu1} min={0.01} max={2} step={0.01} unit="" onChange={setMu1} color="#f47266"/>}
+        <Slider label="φ₁ — Phase" val={phi1} min={-180} max={180} step={5} unit="°" onChange={setPhi1} color="#f47266"/>
+      </div>
+
+      {tone==="double"&&(
+        <div style={{borderTop:"1px solid #1e2a3a",paddingTop:12,marginBottom:8}}>
+          <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:8,fontWeight:"bold"}}>MESSAGE 2</div>
+          <Slider label="Am₂ — Amplitude" val={Am2} min={0.1} max={5} step={0.1} unit=" V" onChange={setAm2} color="#fbbf24"/>
+          <Slider label="fm₂ — Frequency"  val={fm2} min={100} max={5000} step={50} unit=" Hz" onChange={setFm2} color="#fbbf24"/>
+          {mode==="dsbfc"&&<Slider label="μ₂ — Mod. Index" val={mu2} min={0.01} max={2} step={0.01} unit="" onChange={setMu2} color="#fbbf24"/>}
+          <Slider label="φ₂ — Phase" val={phi2} min={-180} max={180} step={5} unit="°" onChange={setPhi2} color="#fbbf24"/>
+        </div>
+      )}
+
+      <div style={{borderTop:"1px solid #1e2a3a",paddingTop:12}}>
+        <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:8,fontWeight:"bold"}}>DISPLAY</div>
+        <Slider label="Cycles Shown" val={cycles} min={1} max={10} step={1} unit="" onChange={setCycles} color="#a78bfa"/>
+        <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginTop:8}}>
+          <input type="checkbox" checked={showEnv} onChange={e=>setShowEnv(e.target.checked)} style={{accentColor:"#fbbf24"}}/>
+          <span style={{color:"#94a3b8",fontSize:12}}>Show envelope trace</span>
+        </label>
+      </div>
+    </>
+  );
+
   return(
     <div style={{ minHeight:"100vh", background:"#0b0f1a",
       color:"#c0dada", fontFamily:"'Courier New',monospace", boxSizing:"border-box" }}>
-      <div style={{ padding: isMobile ? "10px 12px 24px" : "12px 24px 32px" }}>
+      <div style={{ padding: isMobile ? "10px 12px 24px" : "16px 28px 40px" }}>
 
         {/* HEADER */}
-        <div style={{ marginBottom:14, paddingBottom:10, borderBottom:"1px solid #1e2a3a",
+        <div style={{ marginBottom:20, paddingBottom:12, borderBottom:"1px solid #1e2a3a",
           display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
           <div style={{ display:"flex", alignItems:"center", gap:14 }}>
             <button onClick={onBack} style={{
               background:"#131929", border:"1px solid #1e2a3a", borderRadius:8,
-              padding:"6px 14px", cursor:"pointer", color:"#64748b", fontSize:13,
+              padding:"7px 16px", cursor:"pointer", color:"#64748b", fontSize:13,
             }}>← Back</button>
             <div>
-              <h1 style={{ margin:0, fontSize: isMobile ? 15 : 20, fontWeight:900,
+              <h1 style={{ margin:0, fontSize: isMobile ? 16 : 22, fontWeight:900,
                 background:"linear-gradient(135deg,#22d3ee,#a78bfa)",
                 WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:2 }}>
                 ◈ AM SIGNAL TOOLBOX
               </h1>
-              <div style={{ color:"#22d3ee", fontSize:13, fontWeight:"bold", fontFamily:"'Courier New',monospace",
-                letterSpacing:3, textShadow:"0 0 12px #22d3ee88", marginTop:2 }}>
+              <div style={{ color:"#22d3ee", fontSize:13, fontWeight:"bold",
+                letterSpacing:3, textShadow:"0 0 12px #22d3ee66", marginTop:2 }}>
                 APURBA MAITY
               </div>
             </div>
@@ -717,7 +797,7 @@ function AMToolbox({ onBack }) {
             <button onClick={() => setSidebarOpen(o => !o)} style={{
               background: sidebarOpen ? "rgba(34,211,238,0.12)" : "#131929",
               border:`1px solid ${sidebarOpen ? "#22d3ee66" : "#1e2a3a"}`,
-              borderRadius:8, padding:"8px 16px", cursor:"pointer",
+              borderRadius:8, padding:"8px 18px", cursor:"pointer",
               color: sidebarOpen ? "#22d3ee" : "#64748b", fontSize:13, fontWeight:700,
             }}>
               {sidebarOpen ? "✕ Close" : "⚙ Controls"}
@@ -725,200 +805,87 @@ function AMToolbox({ onBack }) {
           )}
         </div>
 
-        {/* BODY */}
-        <div style={{ display:"flex", gap:16, alignItems:"flex-start", flexDirection: isMobile ? "column" : "row" }}>
-
-          {/* Mobile collapsible drawer */}
-          {isMobile && sidebarOpen && (
-            <div style={{ width:"100%", background:"#0f1623", borderRadius:10,
-              border:"1px solid #1e2a3a", padding:14, boxSizing:"border-box" }}>
-
-            <div style={{marginBottom:13}}>
-              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>MODULATION MODE</div>
-              {[["dsbfc","DSB-FC  (full carrier)"],["dsbsc","DSB-SC  (suppressed)"],
-                ["ssb","SSB-USB  (single side)"],["vsb","VSB  (vestigial)"]].map(([v,l])=>(
-                <button key={v} onClick={()=>setMode(v)}
-                  style={{...btnStyle(mode===v),display:"block",width:"100%",marginBottom:4,textAlign:"left"}}>{l}</button>
-              ))}
-            </div>
-
-            <div style={{marginBottom:13}}>
-              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>TONE TYPE</div>
-              <div style={{display:"flex",gap:5}}>
-                {[["single","Single Tone"],["double","Double Tone"]].map(([v,l])=>(
-                  <button key={v} onClick={()=>setTone(v)}
-                    style={{...btnStyle(tone===v),flex:1,textAlign:"center",fontSize:10}}>{l}</button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{marginBottom:13,background:"#0b0f1a",border:"1px solid #1e2a3a",borderRadius:6,padding:"10px 10px 6px"}}>
-              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>ANIMATION</div>
-              <Slider label="Scroll Speed" val={animSpeed} min={0} max={10} step={0.5} unit="×"
-                onChange={setAnimSpeed} color={animSpeed===0?"#fbbf24":"#4ade80"}/>
-              <div style={{fontSize:10,color:animSpeed===0?"#fbbf24":"#4ade80",marginTop:-3,marginBottom:2}}>
-                {animSpeed===0?"⏸ FROZEN — stable view":`▶ LIVE — speed ${animSpeed}×`}
-              </div>
-            </div>
-
-            <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10,marginBottom:8}}>
-              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>CARRIER</div>
-              <Slider label="Ac — Amplitude" val={Ac} min={0.5} max={5} step={0.1} unit=" V" onChange={setAc}/>
-              <Slider label="fc — Frequency"  val={fc} min={2000} max={50000} step={500} unit=" Hz" onChange={setFc} color="#22d3ee"/>
-            </div>
-
-            <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10,marginBottom:8}}>
-              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>MESSAGE 1</div>
-              <Slider label="Am₁ — Amplitude" val={Am1} min={0.1} max={5} step={0.1} unit=" V" onChange={setAm1} color="#f47266"/>
-              <Slider label="fm₁ — Frequency"  val={fm1} min={100} max={5000} step={50} unit=" Hz" onChange={setFm1} color="#f47266"/>
-              {mode==="dsbfc"&&<Slider label="μ₁ — Mod. Index" val={mu1} min={0.01} max={2} step={0.01} unit="" onChange={setMu1} color="#f47266"/>}
-              <Slider label="φ₁ — Phase" val={phi1} min={-180} max={180} step={5} unit="°" onChange={setPhi1} color="#f47266"/>
-            </div>
-
-            {tone==="double"&&(
-              <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10,marginBottom:8}}>
-                <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>MESSAGE 2</div>
-                <Slider label="Am₂ — Amplitude" val={Am2} min={0.1} max={5} step={0.1} unit=" V" onChange={setAm2} color="#fbbf24"/>
-                <Slider label="fm₂ — Frequency"  val={fm2} min={100} max={5000} step={50} unit=" Hz" onChange={setFm2} color="#fbbf24"/>
-                {mode==="dsbfc"&&<Slider label="μ₂ — Mod. Index" val={mu2} min={0.01} max={2} step={0.01} unit="" onChange={setMu2} color="#fbbf24"/>}
-                <Slider label="φ₂ — Phase" val={phi2} min={-180} max={180} step={5} unit="°" onChange={setPhi2} color="#fbbf24"/>
-              </div>
-            )}
-
-            <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10}}>
-              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>DISPLAY</div>
-              <Slider label="Cycles Shown" val={cycles} min={1} max={10} step={1} unit="" onChange={setCycles} color="#a78bfa"/>
-              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginTop:7}}>
-                <input type="checkbox" checked={showEnv} onChange={e=>setShowEnv(e.target.checked)} style={{accentColor:"#fbbf24"}}/>
-                <span style={{color:"#94a3b8",fontSize:11}}>Show envelope trace</span>
-              </label>
-            </div>
+        {/* Mobile drawer */}
+        {isMobile && sidebarOpen && (
+          <div style={{ background:"#0f1623", border:"1px solid #1e2a3a",
+            borderRadius:12, padding:16, marginBottom:16 }}>
+            {sidebarJSX}
           </div>
-          )}
+        )}
 
-          {/* Desktop sidebar — always visible on non-mobile */}
+        {/* BODY — desktop: row; mobile: column */}
+        <div style={{ display:"flex", gap:20, alignItems:"flex-start",
+          flexDirection: isMobile ? "column" : "row" }}>
+
+          {/* Desktop sidebar — always visible on desktop */}
           {!isMobile && (
-            <div style={{ width:256, flexShrink:0, background:"#0f1623", borderRadius:10,
-              border:"1px solid #1e2a3a", padding:14, overflowY:"auto",
-              maxHeight:"calc(100vh - 90px)", position:"sticky", top:12, boxSizing:"border-box" }}>
-
-            <div style={{marginBottom:13}}>
-              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>MODULATION MODE</div>
-              {[["dsbfc","DSB-FC  (full carrier)"],["dsbsc","DSB-SC  (suppressed)"],
-                ["ssb","SSB-USB  (single side)"],["vsb","VSB  (vestigial)"]].map(([v,l])=>(
-                <button key={v} onClick={()=>setMode(v)}
-                  style={{...btnStyle(mode===v),display:"block",width:"100%",marginBottom:4,textAlign:"left"}}>{l}</button>
-              ))}
+            <div style={{ width:264, flexShrink:0, background:"#0f1623", borderRadius:12,
+              border:"1px solid #1e2a3a", padding:16, overflowY:"auto",
+              maxHeight:"calc(100vh - 100px)", position:"sticky", top:16, boxSizing:"border-box" }}>
+              {sidebarJSX}
             </div>
-
-            <div style={{marginBottom:13}}>
-              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>TONE TYPE</div>
-              <div style={{display:"flex",gap:5}}>
-                {[["single","Single Tone"],["double","Double Tone"]].map(([v,l])=>(
-                  <button key={v} onClick={()=>setTone(v)}
-                    style={{...btnStyle(tone===v),flex:1,textAlign:"center",fontSize:10}}>{l}</button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{marginBottom:13,background:"#0b0f1a",border:"1px solid #1e2a3a",borderRadius:6,padding:"10px 10px 6px"}}>
-              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>ANIMATION</div>
-              <Slider label="Scroll Speed" val={animSpeed} min={0} max={10} step={0.5} unit="×"
-                onChange={setAnimSpeed} color={animSpeed===0?"#fbbf24":"#4ade80"}/>
-              <div style={{fontSize:10,color:animSpeed===0?"#fbbf24":"#4ade80",marginTop:-3,marginBottom:2}}>
-                {animSpeed===0?"⏸ FROZEN — stable view":`▶ LIVE — speed ${animSpeed}×`}
-              </div>
-            </div>
-
-            <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10,marginBottom:8}}>
-              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>CARRIER</div>
-              <Slider label="Ac — Amplitude" val={Ac} min={0.5} max={5} step={0.1} unit=" V" onChange={setAc}/>
-              <Slider label="fc — Frequency"  val={fc} min={2000} max={50000} step={500} unit=" Hz" onChange={setFc} color="#22d3ee"/>
-            </div>
-
-            <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10,marginBottom:8}}>
-              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>MESSAGE 1</div>
-              <Slider label="Am₁ — Amplitude" val={Am1} min={0.1} max={5} step={0.1} unit=" V" onChange={setAm1} color="#f47266"/>
-              <Slider label="fm₁ — Frequency"  val={fm1} min={100} max={5000} step={50} unit=" Hz" onChange={setFm1} color="#f47266"/>
-              {mode==="dsbfc"&&<Slider label="μ₁ — Mod. Index" val={mu1} min={0.01} max={2} step={0.01} unit="" onChange={setMu1} color="#f47266"/>}
-              <Slider label="φ₁ — Phase" val={phi1} min={-180} max={180} step={5} unit="°" onChange={setPhi1} color="#f47266"/>
-            </div>
-
-            {tone==="double"&&(
-              <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10,marginBottom:8}}>
-                <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>MESSAGE 2</div>
-                <Slider label="Am₂ — Amplitude" val={Am2} min={0.1} max={5} step={0.1} unit=" V" onChange={setAm2} color="#fbbf24"/>
-                <Slider label="fm₂ — Frequency"  val={fm2} min={100} max={5000} step={50} unit=" Hz" onChange={setFm2} color="#fbbf24"/>
-                {mode==="dsbfc"&&<Slider label="μ₂ — Mod. Index" val={mu2} min={0.01} max={2} step={0.01} unit="" onChange={setMu2} color="#fbbf24"/>}
-                <Slider label="φ₂ — Phase" val={phi2} min={-180} max={180} step={5} unit="°" onChange={setPhi2} color="#fbbf24"/>
-              </div>
-            )}
-
-            <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10}}>
-              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>DISPLAY</div>
-              <Slider label="Cycles Shown" val={cycles} min={1} max={10} step={1} unit="" onChange={setCycles} color="#a78bfa"/>
-              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginTop:7}}>
-                <input type="checkbox" checked={showEnv} onChange={e=>setShowEnv(e.target.checked)} style={{accentColor:"#fbbf24"}}/>
-                <span style={{color:"#94a3b8",fontSize:11}}>Show envelope trace</span>
-              </label>
-            </div>
-          </div>
           )}
 
-          {/* ═══ MAIN PANEL ═══ */}
-          <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:12}}>
+          {/* MAIN PANEL */}
+          <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", gap:16 }}>
 
             {/* Signal type + Noise */}
-            <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"stretch"}}>
-              <div style={{background:"#0f1623",border:"1px solid #1e2a3a",borderRadius:10,padding:"12px 16px",flex:"2 1 400px"}}>
-                <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:10,fontWeight:"bold"}}>MESSAGE SIGNAL SHAPE</div>
-                <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+            <div style={{ display:"flex", gap:14, flexWrap:"wrap", alignItems:"stretch" }}>
+              <div style={{ background:"#0f1623", border:"1px solid #1e2a3a", borderRadius:12,
+                padding:"14px 18px", flex:"2 1 400px" }}>
+                <div style={{ color:"#64748b", fontSize:10, letterSpacing:2, marginBottom:12, fontWeight:"bold" }}>MESSAGE SIGNAL SHAPE</div>
+                <div style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"center" }}>
                   {SIG_TYPES.map(({id,label,color})=>(
                     <div key={id} onClick={()=>setSigType(id)} style={{
-                      cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:5,
+                      cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:6,
                       background:sigType===id?`${color}15`:"transparent",
                       border:`1px solid ${sigType===id?color+"66":"#1e2a3a"}`,
-                      borderRadius:8,padding:"8px 10px",transition:"all 0.15s"}}>
+                      borderRadius:10, padding:"10px 12px", transition:"all 0.15s",
+                      minWidth:100,
+                    }}>
                       <SignalPreview type={id} color={color} dutyCycle={dutyCycle}/>
-                      <span style={{color:sigType===id?color:"#334155",fontSize:11,fontWeight:"bold",fontFamily:"monospace"}}>{label}</span>
+                      <span style={{ color:sigType===id?color:"#475569", fontSize:12, fontWeight:"bold", fontFamily:"monospace" }}>{label}</span>
                     </div>
                   ))}
                 </div>
                 {sigType==="pulse"&&(
-                  <div style={{marginTop:10,maxWidth:360}}>
+                  <div style={{ marginTop:12, maxWidth:360 }}>
                     <Slider label="Duty Cycle" val={dutyCycle} min={0.05} max={0.95} step={0.05} unit="" onChange={setDutyCycle} color="#22d3ee"/>
                   </div>
                 )}
               </div>
 
-              <div style={{background:"#0f1623",border:`1px solid ${noiseOn?"#f4726644":"#1e2a3a"}`,borderRadius:10,padding:"12px 16px",flex:"1 1 220px"}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                  <div style={{color:"#64748b",fontSize:10,letterSpacing:2,fontWeight:"bold"}}>AWGN NOISE</div>
-                  <label style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer"}}>
-                    <input type="checkbox" checked={noiseOn} onChange={e=>setNoiseOn(e.target.checked)} style={{accentColor:"#f47266"}}/>
-                    <span style={{color:noiseOn?"#f47266":"#334155",fontSize:11,fontWeight:"bold"}}>{noiseOn?"ENABLED":"OFF"}</span>
+              <div style={{ background:"#0f1623", border:`1px solid ${noiseOn?"#f4726644":"#1e2a3a"}`,
+                borderRadius:12, padding:"14px 18px", flex:"1 1 220px" }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+                  <div style={{ color:"#64748b", fontSize:10, letterSpacing:2, fontWeight:"bold" }}>AWGN NOISE</div>
+                  <label style={{ display:"flex", alignItems:"center", gap:7, cursor:"pointer" }}>
+                    <input type="checkbox" checked={noiseOn} onChange={e=>setNoiseOn(e.target.checked)} style={{ accentColor:"#f47266" }}/>
+                    <span style={{ color:noiseOn?"#f47266":"#475569", fontSize:11, fontWeight:"bold" }}>{noiseOn?"ENABLED":"OFF"}</span>
                   </label>
                 </div>
                 {noiseOn&&(<>
                   <Slider label="SNR (dB)" val={snrDb} min={0} max={40} step={1} unit=" dB" onChange={setSnrDb} color="#f47266"/>
-                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
+                  <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:8 }}>
                     {[0,5,10,20,30,40].map(v=>(
-                      <button key={v} onClick={()=>setSnrDb(v)}
-                        style={{...btnStyle(snrDb===v,"#f47266"),fontSize:10,padding:"3px 9px"}}>{v}dB</button>
+                      <button key={v} onClick={()=>setSnrDb(v)} style={{
+                        ...btnStyle(snrDb===v,"#f47266"), fontSize:10, padding:"3px 9px"
+                      }}>{v}dB</button>
                     ))}
                   </div>
-                  <div style={{fontSize:11,color:snrDb<5?"#f47266":snrDb<15?"#fbbf24":"#4ade80",fontWeight:"bold"}}>
-                    {snrDb<5?"⚠ Severe noise":snrDb<10?"⚠ Very noisy":snrDb<20?"△ Moderate noise":snrDb<30?"◎ Acceptable":"✓ Clean channel"}
+                  <div style={{ fontSize:11, fontWeight:"bold",
+                    color:snrDb<5?"#f47266":snrDb<15?"#fbbf24":"#4ade80" }}>
+                    {snrDb<5?"⚠ Severe":snrDb<10?"⚠ Very noisy":snrDb<20?"△ Moderate":snrDb<30?"◎ Acceptable":"✓ Clean"}
                   </div>
                 </>)}
-                {!noiseOn&&<div style={{color:"#1e2a3a",fontSize:11,marginTop:4,lineHeight:1.6}}>
-                  Enable to inject Additive White<br/>Gaussian Noise into s(t)
+                {!noiseOn&&<div style={{ color:"#334155", fontSize:12, lineHeight:1.7 }}>
+                  Enable to inject<br/>Additive White Gaussian Noise
                 </div>}
               </div>
             </div>
 
             {/* Metrics */}
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
               <MCard label="Total Power"   val={metrics.Pt+" W"}  sub="Pt = Pc + Psb"/>
               <MCard label="Carrier Power" val={metrics.Pc+" W"}  color="#22d3ee" sub="Pc = Ac²/2"/>
               <MCard label="Efficiency"    val={metrics.eff+"%"}  color={parseFloat(metrics.eff)<50?"#f47266":"#4ade80"} sub="η = Psb / Pt"/>
@@ -928,51 +895,52 @@ function AMToolbox({ onBack }) {
             </div>
 
             {mode==="dsbfc"&&metrics.overmod&&(
-              <div style={{background:"#1f0a0a",border:"1px solid #f4726666",borderRadius:8,padding:"9px 16px",fontSize:12,color:"#f47266",lineHeight:1.7}}>
-                ⚠  <strong>OVERMODULATION</strong>  —  μ = {metrics.muTot} &gt; 1  &nbsp;
-                <span style={{fontSize:11,opacity:0.7}}>The envelope crosses zero → envelope detector output is clipped and distorted.</span>
+              <div style={{ background:"#1f0a0a", border:"1px solid #f4726655",
+                borderRadius:10, padding:"10px 18px", fontSize:13, color:"#f47266", lineHeight:1.7 }}>
+                ⚠ <strong>OVERMODULATION</strong> — μ = {metrics.muTot} &gt; 1 &nbsp;
+                <span style={{ fontSize:11, opacity:0.7 }}>Envelope crosses zero → clipped demodulated output</span>
               </div>
             )}
 
             {/* Tabs */}
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
               {[["time","⟟ TIME DOMAIN"],["spectrum","⟝ SPECTRUM"],["phasor","⊙ PHASOR"],["demod","⟒ DEMOD LAB"]].map(([v,l])=>(
                 <button key={v} onClick={()=>setTab(v)} style={btnStyle(tab===v)}>{l}</button>
               ))}
             </div>
 
-            {/* ══ TIME DOMAIN ══ */}
+            {/* TIME DOMAIN */}
             {tab==="time"&&(
               <div>
-                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap",
-                  background:"#0f1623",border:"1px solid #0a2828",borderRadius:6,padding:"8px 14px"}}>
-                  <span style={{color:"#64748b",fontSize:10,letterSpacing:1,fontWeight:"bold"}}>TIME DOMAIN  ·  THREE SIGNAL VIEW</span>
-                  <div style={{flex:1,height:1,background:"#1e2a3a",minWidth:20}}/>
-                  <span style={{fontSize:10,color:"#1a5858"}}>🖱 scroll to zoom</span>
-                  <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                    <button onClick={handleZoomOut}  style={{...btnStyle(false),padding:"4px 12px",fontSize:16,lineHeight:1}}>−</button>
-                    <div style={{background:"#021616",border:"1px solid #0a3030",borderRadius:4,
-                      padding:"4px 14px",minWidth:60,textAlign:"center",
-                      color:"#22d3ee",fontSize:13,fontFamily:"monospace",fontWeight:"bold"}}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12, flexWrap:"wrap",
+                  background:"#0f1623", border:"1px solid #1e2a3a", borderRadius:10, padding:"10px 16px" }}>
+                  <span style={{ color:"#64748b", fontSize:10, letterSpacing:1, fontWeight:"bold" }}>TIME DOMAIN · THREE SIGNAL VIEW</span>
+                  <div style={{ flex:1, height:1, background:"#1e2a3a", minWidth:20 }}/>
+                  <span style={{ fontSize:10, color:"#475569" }}>🖱 scroll to zoom</span>
+                  <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+                    <button onClick={handleZoomOut}  style={{ ...btnStyle(false), padding:"4px 12px", fontSize:16, lineHeight:1 }}>−</button>
+                    <div style={{ background:"#0b0f1a", border:"1px solid #1e2a3a", borderRadius:6,
+                      padding:"4px 14px", minWidth:60, textAlign:"center",
+                      color:"#22d3ee", fontSize:13, fontFamily:"monospace", fontWeight:"bold" }}>
                       {zoomLevel.toFixed(1)}×
                     </div>
-                    <button onClick={handleZoomIn}   style={{...btnStyle(false),padding:"4px 12px",fontSize:16,lineHeight:1}}>+</button>
-                    <button onClick={handleZoomReset} style={{...btnStyle(zoomLevel===1),padding:"4px 12px",fontSize:10}}>RESET</button>
+                    <button onClick={handleZoomIn}   style={{ ...btnStyle(false), padding:"4px 12px", fontSize:16, lineHeight:1 }}>+</button>
+                    <button onClick={handleZoomReset} style={{ ...btnStyle(zoomLevel===1), padding:"4px 12px", fontSize:10 }}>RESET</button>
                   </div>
                   {zoomLevel>1&&(
-                    <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                      <span style={{color:"#334155",fontSize:10}}>PAN</span>
-                      <button onClick={handlePanLeft}  style={{...btnStyle(false),padding:"4px 12px",fontSize:14}}>◀</button>
-                      <div style={{background:"#021616",border:"1px solid #0a3030",borderRadius:4,
-                        padding:"4px 10px",minWidth:50,textAlign:"center",
-                        color:"#94a3b8",fontSize:10,fontFamily:"monospace"}}>
+                    <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+                      <span style={{ color:"#475569", fontSize:10 }}>PAN</span>
+                      <button onClick={handlePanLeft}  style={{ ...btnStyle(false), padding:"4px 12px", fontSize:14 }}>◀</button>
+                      <div style={{ background:"#0b0f1a", border:"1px solid #1e2a3a", borderRadius:4,
+                        padding:"4px 10px", minWidth:50, textAlign:"center",
+                        color:"#94a3b8", fontSize:10, fontFamily:"monospace" }}>
                         {(panOffset*100).toFixed(0)}%
                       </div>
-                      <button onClick={handlePanRight} style={{...btnStyle(false),padding:"4px 12px",fontSize:14}}>▶</button>
+                      <button onClick={handlePanRight} style={{ ...btnStyle(false), padding:"4px 12px", fontSize:14 }}>▶</button>
                     </div>
                   )}
-                  <span style={{fontSize:10,color:animSpeed===0?"#fbbf24":"#4ade80",marginLeft:"auto"}}>
-                    {animSpeed===0?"⏸ FROZEN":`▶ SCROLLING ${animSpeed}×`}
+                  <span style={{ fontSize:10, color:animSpeed===0?"#fbbf24":"#4ade80", marginLeft:"auto" }}>
+                    {animSpeed===0?"⏸ FROZEN":`▶ ${animSpeed}×`}
                   </span>
                 </div>
                 <div ref={zoomContainerRef}>
@@ -982,70 +950,71 @@ function AMToolbox({ onBack }) {
               </div>
             )}
 
-            {/* ══ SPECTRUM ══ */}
+            {/* SPECTRUM */}
             {tab==="spectrum"&&(
               <div>
-                <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:10,fontWeight:"bold"}}>
-                  FREQUENCY DOMAIN  ·  SPECTRAL LINE DIAGRAM
+                <div style={{ color:"#64748b", fontSize:10, letterSpacing:2, marginBottom:12, fontWeight:"bold" }}>
+                  FREQUENCY DOMAIN · SPECTRAL LINE DIAGRAM
                 </div>
                 <SpecCanvas lines={specLines}/>
-                <div style={{marginTop:10,display:"flex",gap:8,flexWrap:"wrap"}}>
+                <div style={{ marginTop:12, display:"flex", gap:8, flexWrap:"wrap" }}>
                   {specLines.map((l,i)=>(
-                    <div key={i} style={{background:"#040e0e",border:`1px solid ${l.color}30`,borderRadius:5,padding:"8px 14px",fontSize:11}}>
-                      <span style={{color:l.color,fontWeight:"bold"}}>{l.label}</span>
-                      <span style={{color:"#94a3b8",marginLeft:10}}>{(l.f/1000).toFixed(2)} kHz</span>
-                      <span style={{color:"#2a7070",marginLeft:10}}>A = {l.amp.toFixed(3)}</span>
+                    <div key={i} style={{ background:"#0f1623", border:`1px solid ${l.color}30`,
+                      borderRadius:8, padding:"9px 16px", fontSize:12 }}>
+                      <span style={{ color:l.color, fontWeight:"bold" }}>{l.label}</span>
+                      <span style={{ color:"#64748b", marginLeft:10 }}>{(l.f/1000).toFixed(2)} kHz</span>
+                      <span style={{ color:"#475569", marginLeft:10 }}>A = {l.amp.toFixed(3)}</span>
                     </div>
                   ))}
                 </div>
-                <div style={{marginTop:10,fontSize:12,color:"#2a7070",lineHeight:1.8,
-                  background:"#040e0e",border:"1px solid #0d2828",borderRadius:5,padding:"10px 14px"}}>
-                  <strong style={{color:"#64748b"}}>Bandwidth:</strong>{" "}
+                <div style={{ marginTop:12, fontSize:12, color:"#475569", lineHeight:1.8,
+                  background:"#0f1623", border:"1px solid #1e2a3a", borderRadius:10, padding:"12px 16px" }}>
+                  <strong style={{ color:"#94a3b8" }}>Bandwidth: </strong>
                   {mode==="dsbfc"&&`DSB-FC  BW = 2 × fm = ${(2*fm1/1000).toFixed(2)} kHz`}
                   {mode==="dsbsc"&&`DSB-SC  BW = 2 × fm = ${(2*fm1/1000).toFixed(2)} kHz  (no carrier power)`}
                   {mode==="ssb"  &&`SSB  BW = fm = ${(fm1/1000).toFixed(2)} kHz  (half of DSB)`}
                   {mode==="vsb"  &&`VSB  BW ≈ 1.25 × fm = ${(1.25*fm1/1000).toFixed(2)} kHz`}
-                  {noiseOn&&<span style={{color:"#f47266",marginLeft:16}}>⚠ SNR = {snrDb} dB</span>}
+                  {noiseOn&&<span style={{ color:"#f47266", marginLeft:16 }}>⚠ SNR = {snrDb} dB</span>}
                 </div>
               </div>
             )}
 
-            {/* ══ PHASOR ══ */}
+            {/* PHASOR */}
             {tab==="phasor"&&(
-              <div style={{display:"flex",gap:24,alignItems:"flex-start",flexWrap:"wrap"}}>
+              <div style={{ display:"flex", gap:24, alignItems:"flex-start", flexWrap:"wrap" }}>
                 <PhasorCanvas mu={muDisp} mode={mode}/>
-                <div style={{flex:1,minWidth:260}}>
-                  <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:12,fontWeight:"bold"}}>PHASOR REPRESENTATION</div>
-                  <div style={{fontSize:13,color:"#94a3b8",lineHeight:2.1}}>
+                <div style={{ flex:1, minWidth:260 }}>
+                  <div style={{ color:"#64748b", fontSize:10, letterSpacing:2, marginBottom:14, fontWeight:"bold" }}>PHASOR REPRESENTATION</div>
+                  <div style={{ fontSize:13, color:"#94a3b8", lineHeight:2.1 }}>
                     {mode==="dsbfc"&&<>
-                      <div style={{color:"#22d3ee",fontWeight:"bold",marginBottom:6}}>DSB-FC  =  Carrier + USB + LSB</div>
+                      <div style={{ color:"#22d3ee", fontWeight:"bold", marginBottom:6 }}>DSB-FC  =  Carrier + USB + LSB</div>
                       <div>s(t) = Ac·cos(2πfc·t)</div>
-                      <div style={{paddingLeft:20,color:"#ff8080"}}>+  (μ·Ac/2)·cos(2π(fc+fm)·t)  ←  Upper Sideband</div>
-                      <div style={{paddingLeft:20,color:"#7aeeff"}}>+  (μ·Ac/2)·cos(2π(fc−fm)·t)  ←  Lower Sideband</div>
-                      <div style={{marginTop:10,color:muDisp>1?"#ff4444":"#a78bfa",fontWeight:"bold"}}>
+                      <div style={{ paddingLeft:20, color:"#f47266" }}>+  (μ·Ac/2)·cos(2π(fc+fm)·t)  ←  Upper Sideband</div>
+                      <div style={{ paddingLeft:20, color:"#22d3ee" }}>+  (μ·Ac/2)·cos(2π(fc−fm)·t)  ←  Lower Sideband</div>
+                      <div style={{ marginTop:10, color:muDisp>1?"#f47266":"#a78bfa", fontWeight:"bold" }}>
                         μ = {muDisp.toFixed(3)}  {muDisp>1?"⚠  OVERMODULATION":"✓  Normal"}
                       </div>
                     </>}
                     {mode==="dsbsc"&&<>
-                      <div style={{color:"#22d3ee",fontWeight:"bold",marginBottom:6}}>DSB-SC  =  USB + LSB  (no carrier)</div>
+                      <div style={{ color:"#22d3ee", fontWeight:"bold", marginBottom:6 }}>DSB-SC  =  USB + LSB  (no carrier)</div>
                       <div>s(t) = m(t) · cos(2πfc·t)</div>
-                      <div style={{paddingLeft:20,color:"#ff8080"}}>=  (Am/2)·cos(2π(fc+fm)·t)  ←  USB</div>
-                      <div style={{paddingLeft:20,color:"#7aeeff"}}>+  (Am/2)·cos(2π(fc−fm)·t)  ←  LSB</div>
+                      <div style={{ paddingLeft:20, color:"#f47266" }}>=  (Am/2)·cos(2π(fc+fm)·t)  ←  USB</div>
+                      <div style={{ paddingLeft:20, color:"#22d3ee" }}>+  (Am/2)·cos(2π(fc−fm)·t)  ←  LSB</div>
                     </>}
                     {mode==="ssb"&&<>
-                      <div style={{color:"#f47266",fontWeight:"bold",marginBottom:6}}>SSB-USB  =  Upper Sideband Only</div>
+                      <div style={{ color:"#f47266", fontWeight:"bold", marginBottom:6 }}>SSB-USB  =  Upper Sideband Only</div>
                       <div>s(t) = (Am/2)·cos(2π(fc+fm)·t)</div>
                     </>}
                     {mode==="vsb"&&<>
-                      <div style={{color:"#fbbf24",fontWeight:"bold",marginBottom:6}}>VSB  =  USB + Vestigial LSB</div>
+                      <div style={{ color:"#fbbf24", fontWeight:"bold", marginBottom:6 }}>VSB  =  USB + Vestigial LSB</div>
                       <div>s(t) = (Am/2)·cos(2π(fc+fm)·t)</div>
-                      <div style={{paddingLeft:20,color:"#7aeeff"}}>+  (Am/8)·cos(2π(fc−fm)·t)  ←  Vestige</div>
+                      <div style={{ paddingLeft:20, color:"#22d3ee" }}>+  (Am/8)·cos(2π(fc−fm)·t)  ←  Vestige</div>
                     </>}
                   </div>
-                  <div style={{marginTop:16,background:"#040e0e",border:"1px solid #0d2828",borderRadius:6,padding:12}}>
-                    <div style={{color:"#64748b",fontSize:10,letterSpacing:1,marginBottom:8,fontWeight:"bold"}}>SIGNAL SHAPE — HARMONIC CONTENT</div>
-                    <div style={{fontSize:12,color:"#4a8080",lineHeight:1.8}}>
-                      <div><span style={{color:sigColor}}>▸ {SIG_TYPES.find(s=>s.id===sigType)?.label} wave</span> — currently selected</div>
+                  <div style={{ marginTop:16, background:"#0f1623", border:"1px solid #1e2a3a", borderRadius:10, padding:14 }}>
+                    <div style={{ color:"#64748b", fontSize:10, letterSpacing:1, marginBottom:8, fontWeight:"bold" }}>SIGNAL SHAPE — HARMONIC CONTENT</div>
+                    <div style={{ fontSize:12, color:"#64748b", lineHeight:1.8 }}>
+                      <div><span style={{ color:sigColor }}>▸ {SIG_TYPES.find(s=>s.id===sigType)?.label} wave</span> — currently selected</div>
                       {sigType==="sine"     &&<div>Pure single tone — only the fundamental frequency.</div>}
                       {sigType==="square"   &&<div>Odd harmonics only (3rd, 5th, 7th…) with 1/n rolloff.</div>}
                       {sigType==="triangle" &&<div>Odd harmonics with 1/n² rolloff — softer than square.</div>}
@@ -1057,21 +1026,21 @@ function AMToolbox({ onBack }) {
               </div>
             )}
 
-            {/* ══ DEMOD LAB ══ */}
+            {/* DEMOD */}
             {tab==="demod"&&(
               <div>
-                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,
-                  background:"#0f1623",border:"1px solid #0a2828",borderRadius:6,padding:"8px 14px",flexWrap:"wrap"}}>
-                  <span style={{color:"#64748b",fontSize:10,letterSpacing:1,fontWeight:"bold"}}>
-                    DEMODULATION LAB  ·  {
+                <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12,
+                  background:"#0f1623", border:"1px solid #1e2a3a", borderRadius:10, padding:"10px 16px", flexWrap:"wrap" }}>
+                  <span style={{ color:"#64748b", fontSize:10, letterSpacing:1, fontWeight:"bold" }}>
+                    DEMODULATION LAB · {
                       mode==="dsbfc"?"ENVELOPE DETECTION":
                       mode==="dsbsc"?"SYNCHRONOUS DETECTION":
                       mode==="ssb" ?"COHERENT DETECTION":
                       "COHERENT + VSB FILTER"}
                   </span>
-                  <div style={{flex:1,height:1,background:"#1e2a3a",minWidth:20}}/>
-                  <span style={{fontSize:10,color:animSpeed===0?"#fbbf24":"#4ade80"}}>
-                    {animSpeed===0?"⏸ FROZEN":`▶ LIVE`}
+                  <div style={{ flex:1, height:1, background:"#1e2a3a", minWidth:20 }}/>
+                  <span style={{ fontSize:10, color:animSpeed===0?"#fbbf24":"#4ade80" }}>
+                    {animSpeed===0?"⏸ FROZEN":"▶ LIVE"}
                   </span>
                 </div>
                 <AnimatedWaves params={params} speed={animSpeed} showEnv={showEnv}
