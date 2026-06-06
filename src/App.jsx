@@ -796,6 +796,75 @@ function AMToolbox({ onBack }) {
           </div>
           )}
 
+          {/* Desktop sidebar — always visible on non-mobile */}
+          {!isMobile && (
+            <div style={{ width:256, flexShrink:0, background:"#0f1623", borderRadius:10,
+              border:"1px solid #1e2a3a", padding:14, overflowY:"auto",
+              maxHeight:"calc(100vh - 90px)", position:"sticky", top:12, boxSizing:"border-box" }}>
+
+            <div style={{marginBottom:13}}>
+              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>MODULATION MODE</div>
+              {[["dsbfc","DSB-FC  (full carrier)"],["dsbsc","DSB-SC  (suppressed)"],
+                ["ssb","SSB-USB  (single side)"],["vsb","VSB  (vestigial)"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setMode(v)}
+                  style={{...btnStyle(mode===v),display:"block",width:"100%",marginBottom:4,textAlign:"left"}}>{l}</button>
+              ))}
+            </div>
+
+            <div style={{marginBottom:13}}>
+              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>TONE TYPE</div>
+              <div style={{display:"flex",gap:5}}>
+                {[["single","Single Tone"],["double","Double Tone"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>setTone(v)}
+                    style={{...btnStyle(tone===v),flex:1,textAlign:"center",fontSize:10}}>{l}</button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{marginBottom:13,background:"#0b0f1a",border:"1px solid #1e2a3a",borderRadius:6,padding:"10px 10px 6px"}}>
+              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>ANIMATION</div>
+              <Slider label="Scroll Speed" val={animSpeed} min={0} max={10} step={0.5} unit="×"
+                onChange={setAnimSpeed} color={animSpeed===0?"#fbbf24":"#4ade80"}/>
+              <div style={{fontSize:10,color:animSpeed===0?"#fbbf24":"#4ade80",marginTop:-3,marginBottom:2}}>
+                {animSpeed===0?"⏸ FROZEN — stable view":`▶ LIVE — speed ${animSpeed}×`}
+              </div>
+            </div>
+
+            <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10,marginBottom:8}}>
+              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>CARRIER</div>
+              <Slider label="Ac — Amplitude" val={Ac} min={0.5} max={5} step={0.1} unit=" V" onChange={setAc}/>
+              <Slider label="fc — Frequency"  val={fc} min={2000} max={50000} step={500} unit=" Hz" onChange={setFc} color="#22d3ee"/>
+            </div>
+
+            <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10,marginBottom:8}}>
+              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>MESSAGE 1</div>
+              <Slider label="Am₁ — Amplitude" val={Am1} min={0.1} max={5} step={0.1} unit=" V" onChange={setAm1} color="#f47266"/>
+              <Slider label="fm₁ — Frequency"  val={fm1} min={100} max={5000} step={50} unit=" Hz" onChange={setFm1} color="#f47266"/>
+              {mode==="dsbfc"&&<Slider label="μ₁ — Mod. Index" val={mu1} min={0.01} max={2} step={0.01} unit="" onChange={setMu1} color="#f47266"/>}
+              <Slider label="φ₁ — Phase" val={phi1} min={-180} max={180} step={5} unit="°" onChange={setPhi1} color="#f47266"/>
+            </div>
+
+            {tone==="double"&&(
+              <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10,marginBottom:8}}>
+                <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>MESSAGE 2</div>
+                <Slider label="Am₂ — Amplitude" val={Am2} min={0.1} max={5} step={0.1} unit=" V" onChange={setAm2} color="#fbbf24"/>
+                <Slider label="fm₂ — Frequency"  val={fm2} min={100} max={5000} step={50} unit=" Hz" onChange={setFm2} color="#fbbf24"/>
+                {mode==="dsbfc"&&<Slider label="μ₂ — Mod. Index" val={mu2} min={0.01} max={2} step={0.01} unit="" onChange={setMu2} color="#fbbf24"/>}
+                <Slider label="φ₂ — Phase" val={phi2} min={-180} max={180} step={5} unit="°" onChange={setPhi2} color="#fbbf24"/>
+              </div>
+            )}
+
+            <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10}}>
+              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>DISPLAY</div>
+              <Slider label="Cycles Shown" val={cycles} min={1} max={10} step={1} unit="" onChange={setCycles} color="#a78bfa"/>
+              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginTop:7}}>
+                <input type="checkbox" checked={showEnv} onChange={e=>setShowEnv(e.target.checked)} style={{accentColor:"#fbbf24"}}/>
+                <span style={{color:"#94a3b8",fontSize:11}}>Show envelope trace</span>
+              </label>
+            </div>
+          </div>
+          )}
+
           {/* ═══ MAIN PANEL ═══ */}
           <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:12}}>
 
