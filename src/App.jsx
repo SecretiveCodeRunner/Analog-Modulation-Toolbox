@@ -4,6 +4,66 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 const TWO_PI = 2 * Math.PI;
 const SAMPLES = 2400;
 
+// ── Responsive hook ──────────────────────────────────────────────────────────
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+  return mobile;
+}
+
+// ── Landing screen ───────────────────────────────────────────────────────────
+function LandingScreen({ onSelect }) {
+  const modes = [
+    { id:"am", abbr:"AM", label:"Amplitude Modulation", desc:"DSB-FC · DSB-SC · SSB · VSB", sub:"Vary carrier amplitude with message", icon:"〜", color:"#22d3ee" },
+    { id:"fm", abbr:"FM", label:"Frequency Modulation",  desc:"Wideband · Narrowband · β sweep", sub:"Vary carrier frequency with message", icon:"≋", color:"#a78bfa" },
+    { id:"pm", abbr:"PM", label:"Phase Modulation",       desc:"Phase deviation · kp sweep", sub:"Vary carrier phase with message", icon:"∿", color:"#f472b6" },
+  ];
+  return (
+    <div style={{ minHeight:"100vh", background:"#0b0f1a",
+      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+      fontFamily:"'Segoe UI',system-ui,sans-serif", padding:"24px 16px" }}>
+      <div style={{ textAlign:"center", marginBottom:48 }}>
+        <div style={{ display:"inline-block", background:"rgba(34,211,238,0.08)",
+          border:"1px solid rgba(34,211,238,0.18)", borderRadius:20, padding:"5px 18px",
+          fontSize:11, color:"#64748b", letterSpacing:3, marginBottom:18, textTransform:"uppercase" }}>
+          EC401 · Analog Communication · MAKAUT
+        </div>
+        <h1 style={{ margin:"0 0 12px", fontSize:"clamp(26px,6vw,46px)", fontWeight:900,
+          background:"linear-gradient(135deg,#22d3ee,#a78bfa)",
+          WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:-1 }}>
+          Signal Modulation Lab
+        </h1>
+        <p style={{ color:"#64748b", fontSize:15, margin:0 }}>Select a modulation type to explore</p>
+      </div>
+      <div style={{ display:"flex", gap:20, flexWrap:"wrap", justifyContent:"center", maxWidth:880, width:"100%" }}>
+        {modes.map(m => (
+          <button key={m.id} onClick={() => onSelect(m.id)} style={{
+            flex:"1 1 220px", maxWidth:265, background:"#131929",
+            border:"1px solid #1e2a3a", borderRadius:18, padding:"28px 24px",
+            cursor:"pointer", textAlign:"left", outline:"none",
+            transition:"transform 0.15s,border-color 0.15s,box-shadow 0.15s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor=m.color; e.currentTarget.style.transform="translateY(-4px)"; e.currentTarget.style.boxShadow=`0 12px 40px ${m.color}25`; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor="#1e2a3a"; e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="none"; }}>
+            <div style={{ fontSize:38, marginBottom:14, lineHeight:1 }}>{m.icon}</div>
+            <div style={{ display:"inline-block", background:`${m.color}18`, color:m.color,
+              fontSize:10, fontWeight:800, letterSpacing:3, padding:"3px 10px",
+              borderRadius:6, marginBottom:12, textTransform:"uppercase" }}>{m.abbr}</div>
+            <div style={{ color:"#e2e8f0", fontSize:16, fontWeight:700, marginBottom:6 }}>{m.label}</div>
+            <div style={{ color:m.color, fontSize:11, fontFamily:"monospace", marginBottom:8 }}>{m.desc}</div>
+            <div style={{ color:"#64748b", fontSize:12, lineHeight:1.5 }}>{m.sub}</div>
+          </button>
+        ))}
+      </div>
+      <div style={{ marginTop:48, color:"#1e2a3a", fontSize:11 }}>Apurba Maity · v6.0 · Live Waveforms</div>
+    </div>
+  );
+}
+
 function generateSignalSample(type, phase, dutyCycle = 0.5) {
   const norm = ((phase % TWO_PI) + TWO_PI) % TWO_PI;
   switch (type) {
@@ -76,25 +136,25 @@ function buildSpectrum(p) {
   const { mode, tone, Am1, Am2, Ac, fm1, fm2, fc, mu1, mu2 } = p;
   const lines = [];
   if (mode === "dsbfc") {
-    lines.push({ f: fc,      amp: Ac / 2,        label: "Carrier",                      color: "#00ffcc" });
-    lines.push({ f: fc+fm1,  amp: (mu1*Ac)/4,    label: tone==="double"?"USB₁":"USB",   color: "#ff6b6b" });
-    lines.push({ f: fc-fm1,  amp: (mu1*Ac)/4,    label: tone==="double"?"LSB₁":"LSB",   color: "#6bf5ff" });
+    lines.push({ f: fc,      amp: Ac / 2,        label: "Carrier",                      color: "#22d3ee" });
+    lines.push({ f: fc+fm1,  amp: (mu1*Ac)/4,    label: tone==="double"?"USB₁":"USB",   color: "#f47266" });
+    lines.push({ f: fc-fm1,  amp: (mu1*Ac)/4,    label: tone==="double"?"LSB₁":"LSB",   color: "#22d3ee" });
     if (tone==="double") {
-      lines.push({ f: fc+fm2, amp: (mu2*Ac)/4,   label: "USB₂", color: "#ffcc44" });
-      lines.push({ f: fc-fm2, amp: (mu2*Ac)/4,   label: "LSB₂", color: "#b86bff" });
+      lines.push({ f: fc+fm2, amp: (mu2*Ac)/4,   label: "USB₂", color: "#fbbf24" });
+      lines.push({ f: fc-fm2, amp: (mu2*Ac)/4,   label: "LSB₂", color: "#a78bfa" });
     }
   } else if (mode === "dsbsc") {
-    lines.push({ f: fc+fm1, amp: Am1/4, label: tone==="double"?"USB₁":"USB", color: "#ff6b6b" });
-    lines.push({ f: fc-fm1, amp: Am1/4, label: tone==="double"?"LSB₁":"LSB", color: "#6bf5ff" });
+    lines.push({ f: fc+fm1, amp: Am1/4, label: tone==="double"?"USB₁":"USB", color: "#f47266" });
+    lines.push({ f: fc-fm1, amp: Am1/4, label: tone==="double"?"LSB₁":"LSB", color: "#22d3ee" });
     if (tone==="double") {
-      lines.push({ f: fc+fm2, amp: Am2/4, label: "USB₂", color: "#ffcc44" });
-      lines.push({ f: fc-fm2, amp: Am2/4, label: "LSB₂", color: "#b86bff" });
+      lines.push({ f: fc+fm2, amp: Am2/4, label: "USB₂", color: "#fbbf24" });
+      lines.push({ f: fc-fm2, amp: Am2/4, label: "LSB₂", color: "#a78bfa" });
     }
   } else if (mode === "ssb") {
-    lines.push({ f: fc+fm1, amp: Am1/4, label: "USB", color: "#ff6b6b" });
+    lines.push({ f: fc+fm1, amp: Am1/4, label: "USB", color: "#f47266" });
   } else {
-    lines.push({ f: fc+fm1, amp: Am1/2,  label: "USB",     color: "#ff6b6b" });
-    lines.push({ f: fc-fm1, amp: Am1/8,  label: "Vestige", color: "#6bf5ff" });
+    lines.push({ f: fc+fm1, amp: Am1/2,  label: "USB",     color: "#f47266" });
+    lines.push({ f: fc-fm1, amp: Am1/8,  label: "Vestige", color: "#22d3ee" });
   }
   return lines;
 }
@@ -210,11 +270,11 @@ function AnimatedWaves({ params, speed, showEnv, waveConfigs, zoomLevel, panOffs
         const H   = canvas.height;
 
         ctx.clearRect(0, 0, W, H);
-        ctx.fillStyle = "#030d0d";
+        ctx.fillStyle = "#080f1a";
         ctx.fillRect(0, 0, W, H);
 
         // ── grid ──────────────────────────────────────────────────────────────
-        ctx.strokeStyle = "#0b2222";
+        ctx.strokeStyle = "#0f1e2e";
         ctx.lineWidth   = 1;
         const gridCols = Math.max(10, Math.round(10 * zoom));
         for (let i = 1; i < 5; i++) {
@@ -227,7 +287,7 @@ function AnimatedWaves({ params, speed, showEnv, waveConfigs, zoomLevel, panOffs
         }
 
         // ── zero line ─────────────────────────────────────────────────────────
-        ctx.strokeStyle = "#1a4040";
+        ctx.strokeStyle = "#162636";
         ctx.lineWidth   = 1.5;
         ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
 
@@ -336,7 +396,7 @@ function AnimatedWaves({ params, speed, showEnv, waveConfigs, zoomLevel, panOffs
           ctx.strokeStyle = "#00ffcc55";
           ctx.lineWidth   = 1;
           ctx.stroke();
-          ctx.fillStyle  = "#00ffcc";
+          ctx.fillStyle  = "#22d3ee";
           ctx.textAlign  = "left";
           ctx.fillText(zText, zx + 8, zy + zh - 5);
         }
@@ -355,7 +415,7 @@ function AnimatedWaves({ params, speed, showEnv, waveConfigs, zoomLevel, panOffs
           ctx.strokeStyle = "#00ff8855";
           ctx.lineWidth   = 1;
           ctx.stroke();
-          ctx.fillStyle  = "#00ff88";
+          ctx.fillStyle  = "#4ade80";
           ctx.textAlign  = "left";
           ctx.fillText(lText, lx + 7, ly + lh - 4);
         }
@@ -392,8 +452,8 @@ function SpecCanvas({ lines }) {
     const ctx = canvas.getContext("2d");
     const W = canvas.width, H = canvas.height;
     ctx.clearRect(0,0,W,H);
-    ctx.fillStyle = "#030d0d"; ctx.fillRect(0,0,W,H);
-    ctx.strokeStyle = "#0b2222"; ctx.lineWidth = 1;
+    ctx.fillStyle = "#080f1a"; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle = "#0f1e2e"; ctx.lineWidth = 1;
     for (let i=1;i<6;i++){const y=(i/6)*H;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
     const freqs = lines.map(l=>l.f);
     const maxA  = Math.max(...lines.map(l=>l.amp),0.001);
@@ -402,7 +462,7 @@ function SpecCanvas({ lines }) {
     const fLo   = fMin-pad, fHi = fMax+pad;
     const toX   = f => 40+((f-fLo)/(fHi-fLo))*(W-80);
     const toY   = a => H-40-(a/maxA)*(H-80);
-    ctx.strokeStyle="#1a4040"; ctx.lineWidth=1;
+    ctx.strokeStyle="#162636"; ctx.lineWidth=1;
     ctx.beginPath();ctx.moveTo(0,H-40);ctx.lineTo(W,H-40);ctx.stroke();
     ctx.fillStyle="#2a5555"; ctx.font="11px monospace"; ctx.textAlign="center";
     for(let i=0;i<=10;i++){
@@ -438,30 +498,30 @@ function PhasorCanvas({ mu, mode }) {
     const W=canvas.width,H=canvas.height,cx=W/2,cy=H/2,R=Math.min(W,H)/2-24;
     const draw=()=>{
       angle.current+=0.022; const a=angle.current;
-      ctx.clearRect(0,0,W,H); ctx.fillStyle="#030d0d"; ctx.fillRect(0,0,W,H);
+      ctx.clearRect(0,0,W,H); ctx.fillStyle="#080f1a"; ctx.fillRect(0,0,W,H);
       ctx.strokeStyle="#0d2828"; ctx.lineWidth=1;
       ctx.beginPath();ctx.arc(cx,cy,R,0,TWO_PI);ctx.stroke();
       ctx.strokeStyle="#163030";
       ctx.beginPath();ctx.moveTo(cx-R-6,cy);ctx.lineTo(cx+R+6,cy);ctx.stroke();
       ctx.beginPath();ctx.moveTo(cx,cy-R-6);ctx.lineTo(cx,cy+R+6);ctx.stroke();
       const cLen=R*0.68,ex=cx+cLen*Math.cos(a),ey=cy-cLen*Math.sin(a);
-      ctx.strokeStyle="#00ffcc";ctx.lineWidth=3;ctx.shadowColor="#00ffcc";ctx.shadowBlur=10;
+      ctx.strokeStyle="#22d3ee";ctx.lineWidth=3;ctx.shadowColor="#22d3ee";ctx.shadowBlur=10;
       ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ex,ey);ctx.stroke();
-      ctx.fillStyle="#00ffcc";ctx.beginPath();ctx.arc(ex,ey,5,0,TWO_PI);ctx.fill();
+      ctx.fillStyle="#22d3ee";ctx.beginPath();ctx.arc(ex,ey,5,0,TWO_PI);ctx.fill();
       ctx.shadowBlur=0;
       if(mode==="dsbfc"||mode==="dsbsc"){
         const sbLen=R*0.3*Math.min(Math.max(mu,0.1),1.5);
         const usbX=ex+sbLen*Math.cos(2*a),usbY=ey-sbLen*Math.sin(2*a);
         const lsbX=ex+sbLen,lsbY=ey;
-        ctx.strokeStyle="#ff6b6b";ctx.lineWidth=2.5;ctx.shadowColor="#ff6b6b";ctx.shadowBlur=6;
+        ctx.strokeStyle="#f47266";ctx.lineWidth=2.5;ctx.shadowColor="#f47266";ctx.shadowBlur=6;
         ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(usbX,usbY);ctx.stroke();
-        ctx.fillStyle="#ff6b6b";ctx.beginPath();ctx.arc(usbX,usbY,4,0,TWO_PI);ctx.fill();
-        ctx.strokeStyle="#6bf5ff";ctx.shadowColor="#6bf5ff";
+        ctx.fillStyle="#f47266";ctx.beginPath();ctx.arc(usbX,usbY,4,0,TWO_PI);ctx.fill();
+        ctx.strokeStyle="#22d3ee";ctx.shadowColor="#22d3ee";
         ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(lsbX,lsbY);ctx.stroke();
-        ctx.fillStyle="#6bf5ff";ctx.beginPath();ctx.arc(lsbX,lsbY,4,0,TWO_PI);ctx.fill();
+        ctx.fillStyle="#22d3ee";ctx.beginPath();ctx.arc(lsbX,lsbY,4,0,TWO_PI);ctx.fill();
         ctx.shadowBlur=0;
       }
-      const legend=[["#00ffcc","Carrier"],...(mode==="dsbfc"||mode==="dsbsc"?[["#ff6b6b","USB"],["#6bf5ff","LSB"]]:[]),(mode==="ssb"?[["#ff6b6b","USB only"]]:[])].flat(1);
+      const legend=[["#22d3ee","Carrier"],...(mode==="dsbfc"||mode==="dsbsc"?[["#f47266","USB"],["#22d3ee","LSB"]]:[]),(mode==="ssb"?[["#f47266","USB only"]]:[])].flat(1);
       for(let i=0;i<legend.length;i+=2){
         ctx.fillStyle=legend[i];ctx.font="bold 12px monospace";
         ctx.fillText("● "+legend[i+1],8,18+(i/2)*16);
@@ -478,10 +538,10 @@ function PhasorCanvas({ mu, mode }) {
 // ─── Demod Theory ─────────────────────────────────────────────────────────────
 function DemodTheory({ mode }) {
   const info = {
-    dsbfc:{title:"DSB-FC  —  Envelope Detection",color:"#00ffcc",steps:["Rectify the signal (half or full-wave rectifier)","RC low-pass filter smooths the rectified output envelope","DC block capacitor removes the Ac offset","Output ≈ Ac · μ · m(t)  ✓ No phase reference needed — simple & robust"]},
-    dsbsc:{title:"DSB-SC  —  Synchronous (Coherent) Detection",color:"#6bf5ff",steps:["Multiply received s(t) by locally generated cos(2πfc·t)","Low-pass filter removes the double-frequency 2fc term","Output = m(t)/2  — requires a phase-locked local oscillator","⚠  Envelope detection FAILS here due to phase ambiguity"]},
-    ssb:  {title:"SSB-USB  —  Coherent Detection",color:"#ff6b6b",steps:["Multiply by cos(2πfc·t) from a phase-locked oscillator","Low-pass filter extracts the baseband signal","Very sensitive to frequency offset / phase errors","Half-power output vs original — but half the bandwidth"]},
-    vsb:  {title:"VSB  —  Coherent + Equalizer Filter",color:"#ffcc44",steps:["Coherent demodulation same as SSB","Vestigial equalizer filter corrects edge rolloff","Used in broadcast TV (NTSC/PAL/ATSC DVB)","Best compromise: near-SSB bandwidth + DSB robustness"]},
+    dsbfc:{title:"DSB-FC  —  Envelope Detection",color:"#22d3ee",steps:["Rectify the signal (half or full-wave rectifier)","RC low-pass filter smooths the rectified output envelope","DC block capacitor removes the Ac offset","Output ≈ Ac · μ · m(t)  ✓ No phase reference needed — simple & robust"]},
+    dsbsc:{title:"DSB-SC  —  Synchronous (Coherent) Detection",color:"#22d3ee",steps:["Multiply received s(t) by locally generated cos(2πfc·t)","Low-pass filter removes the double-frequency 2fc term","Output = m(t)/2  — requires a phase-locked local oscillator","⚠  Envelope detection FAILS here due to phase ambiguity"]},
+    ssb:  {title:"SSB-USB  —  Coherent Detection",color:"#f47266",steps:["Multiply by cos(2πfc·t) from a phase-locked oscillator","Low-pass filter extracts the baseband signal","Very sensitive to frequency offset / phase errors","Half-power output vs original — but half the bandwidth"]},
+    vsb:  {title:"VSB  —  Coherent + Equalizer Filter",color:"#fbbf24",steps:["Coherent demodulation same as SSB","Vestigial equalizer filter corrects edge rolloff","Used in broadcast TV (NTSC/PAL/ATSC DVB)","Best compromise: near-SSB bandwidth + DSB robustness"]},
   };
   const d=info[mode];
   return(
@@ -523,11 +583,11 @@ function SignalPreview({ type, color, dutyCycle=0.5 }) {
 }
 
 // ─── Reusable UI ──────────────────────────────────────────────────────────────
-function Slider({ label, val, min, max, step, unit, onChange, color="#00ffcc" }) {
+function Slider({ label, val, min, max, step, unit, onChange, color="#22d3ee" }) {
   return(
     <div style={{marginBottom:10}}>
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-        <span style={{color:"#4a9090",fontSize:11,fontFamily:"monospace"}}>{label}</span>
+        <span style={{color:"#94a3b8",fontSize:11,fontFamily:"monospace"}}>{label}</span>
         <span style={{color,fontSize:12,fontFamily:"monospace",fontWeight:"bold"}}>
           {typeof val==="number"?(val<10?val.toFixed(2):Math.round(val)):val}{unit}
         </span>
@@ -539,37 +599,39 @@ function Slider({ label, val, min, max, step, unit, onChange, color="#00ffcc" })
   );
 }
 
-function MCard({ label, val, color="#00ffcc", sub }) {
+function MCard({ label, val, color="#22d3ee", sub }) {
   return(
     <div style={{flex:"1 1 110px",background:"#040e0e",borderRadius:7,border:`1px solid ${color}30`,padding:"11px 14px"}}>
-      <div style={{color:"#2a6868",fontSize:10,fontFamily:"monospace",marginBottom:3}}>{label}</div>
+      <div style={{color:"#334155",fontSize:10,fontFamily:"monospace",marginBottom:3}}>{label}</div>
       <div style={{color,fontSize:16,fontFamily:"monospace",fontWeight:"bold"}}>{val}</div>
       {sub&&<div style={{color:"#2a6060",fontSize:10,marginTop:3}}>{sub}</div>}
     </div>
   );
 }
 
-const btnStyle=(active,color="#00ffcc")=>({
+const btnStyle=(active,color="#22d3ee")=>({
   padding:"6px 15px",cursor:"pointer",fontSize:11,
   fontFamily:"monospace",fontWeight:"bold",
   background:active?`${color}20`:"transparent",
-  color:active?color:"#2a6868",
+  color:active?color:"#334155",
   border:`1px solid ${active?color+"66":"#0d2828"}`,
   borderRadius:4,transition:"all 0.15s",letterSpacing:0.5,whiteSpace:"nowrap",
 });
 
 const SIG_TYPES=[
-  {id:"sine",     label:"Sine",     color:"#00ffcc"},
-  {id:"square",   label:"Square",   color:"#ff6b6b"},
-  {id:"triangle", label:"Triangle", color:"#ffcc44"},
-  {id:"sawtooth", label:"Sawtooth", color:"#b86bff"},
-  {id:"pulse",    label:"Pulse",    color:"#6bf5ff"},
+  {id:"sine",     label:"Sine",     color:"#22d3ee"},
+  {id:"square",   label:"Square",   color:"#f47266"},
+  {id:"triangle", label:"Triangle", color:"#fbbf24"},
+  {id:"sawtooth", label:"Sawtooth", color:"#a78bfa"},
+  {id:"pulse",    label:"Pulse",    color:"#22d3ee"},
 ];
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ══════════════════════════════════════════════════════════════════════════════
-export default function AMToolbox() {
+function AMToolbox({ onBack }) {
+  const isMobile = useIsMobile();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mode,      setMode]      = useState("dsbfc");
   const [tone,      setTone]      = useState("single");
   const [tab,       setTab]       = useState("time");
@@ -593,7 +655,7 @@ export default function AMToolbox() {
   const specLines = useMemo(()=>buildSpectrum(params),[mode,tone,Am1,Am2,Ac,fm1,fm2,fc,mu1,mu2]);
   const metrics   = useMemo(()=>buildMetrics(params), [mode,tone,Am1,Am2,Ac,fm1,fm2,mu1,mu2]);
   const muDisp    = mode==="dsbfc"?(tone==="single"?mu1:Math.sqrt(mu1**2+mu2**2)):0;
-  const sigColor  = SIG_TYPES.find(s=>s.id===sigType)?.color||"#00ffcc";
+  const sigColor  = SIG_TYPES.find(s=>s.id===sigType)?.color||"#22d3ee";
 
   const handleZoomIn    = useCallback(()=>setZoomLevel(z=>Math.min(z*2,32)),[]);
   const handleZoomOut   = useCallback(()=>setZoomLevel(z=>{const n=Math.max(z/2,1);if(n===1)setPanOffset(0);return n;}),[]);
@@ -616,55 +678,63 @@ export default function AMToolbox() {
   const timeWaves=useMemo(()=>[
     {key:"msg",       label:`m(t) — Message  [${SIG_TYPES.find(s=>s.id===sigType)?.label}]`, color:sigColor, height:140},
     {key:"carrier",   label:"c(t) — Carrier Wave",                                            color:"#3ab0b0", height:120},
-    {key:"modulated", label:"s(t) — Modulated Signal",                                        color:"#00ffcc", height:170, showEnv},
+    {key:"modulated", label:"s(t) — Modulated Signal",                                        color:"#22d3ee", height:170, showEnv},
   ],[showEnv,sigType,sigColor]);
 
   const demodWaves=useMemo(()=>[
-    {key:"modulated",   label:"s(t) — Received (Modulated Input)",  color:"#00ffcc", height:150, showEnv},
-    {key:"envelope",    label:"env(t) — Detected Envelope",          color:"#ffcc44", height:120},
+    {key:"modulated",   label:"s(t) — Received (Modulated Input)",  color:"#22d3ee", height:150, showEnv},
+    {key:"envelope",    label:"env(t) — Detected Envelope",          color:"#fbbf24", height:120},
     {key:"demodulated", label:"m′(t) — Recovered Message",           color:sigColor,  height:140},
     {key:"msg",         label:"m(t) — Original Reference",           color:sigColor+"55", height:120},
   ],[showEnv,sigColor]);
 
   return(
-    <div style={{minWidth:"100vw",width:"100%",minHeight:"100vh",background:"#010c0c",
-      color:"#c0dada",fontFamily:"'Courier New',monospace",boxSizing:"border-box",overflowX:"auto"}}>
-      <div style={{padding:"12px 24px 32px",minWidth:0}}>
+    <div style={{ minHeight:"100vh", background:"#0b0f1a",
+      color:"#c0dada", fontFamily:"'Courier New',monospace", boxSizing:"border-box" }}>
+      <div style={{ padding: isMobile ? "10px 12px 24px" : "12px 24px 32px" }}>
 
         {/* HEADER */}
-      <div style={{marginBottom:14,paddingBottom:10,borderBottom:"1px solid #0c2828",
-  display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-  
-  <div style={{display:"flex",alignItems:"center",gap:20}}>
-    <h1 style={{margin:0,fontSize:24,color:"#00ffcc",letterSpacing:5,textShadow:"0 0 24px #00ffcc66"}}>
-      ◈ AM SIGNAL TOOLBOX
-    </h1>
-    <span style={{
-      fontSize:18,
-      fontWeight:"bold",
-      fontFamily:"'Courier New',monospace",
-      color:"#00ffcc",
-      letterSpacing:3,
-      textShadow:"0 0 16px #00ffcc88, 0 0 32px #00ffcc44",
-      borderLeft:"2px solid #0d3838",
-      paddingLeft:20,
-    }}>
-      APURBA MAITY
-    </span>
-  </div>
-
-</div>s
+        <div style={{ marginBottom:14, paddingBottom:10, borderBottom:"1px solid #1e2a3a",
+          display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+            <button onClick={onBack} style={{
+              background:"#131929", border:"1px solid #1e2a3a", borderRadius:8,
+              padding:"6px 14px", cursor:"pointer", color:"#64748b", fontSize:13,
+            }}>← Back</button>
+            <div>
+              <h1 style={{ margin:0, fontSize: isMobile ? 15 : 20, fontWeight:900,
+                background:"linear-gradient(135deg,#22d3ee,#a78bfa)",
+                WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:2 }}>
+                ◈ AM SIGNAL TOOLBOX
+              </h1>
+              <div style={{ color:"#22d3ee", fontSize:13, fontWeight:"bold", fontFamily:"'Courier New',monospace",
+                letterSpacing:3, textShadow:"0 0 12px #22d3ee88", marginTop:2 }}>
+                APURBA MAITY
+              </div>
+            </div>
+          </div>
+          {isMobile && (
+            <button onClick={() => setSidebarOpen(o => !o)} style={{
+              background: sidebarOpen ? "rgba(34,211,238,0.12)" : "#131929",
+              border:`1px solid ${sidebarOpen ? "#22d3ee66" : "#1e2a3a"}`,
+              borderRadius:8, padding:"8px 16px", cursor:"pointer",
+              color: sidebarOpen ? "#22d3ee" : "#64748b", fontSize:13, fontWeight:700,
+            }}>
+              {sidebarOpen ? "✕ Close" : "⚙ Controls"}
+            </button>
+          )}
+        </div>
 
         {/* BODY */}
-        <div style={{display:"flex",gap:16,alignItems:"flex-start"}}>
+        <div style={{ display:"flex", gap:16, alignItems:"flex-start", flexDirection: isMobile ? "column" : "row" }}>
 
-          {/* ═══ SIDEBAR ═══ */}
-          <div style={{width:256,flexShrink:0,background:"#040f0f",borderRadius:9,
-            border:"1px solid #0a2424",padding:14,overflowY:"auto",
-            maxHeight:"calc(100vh - 90px)",position:"sticky",top:12,boxSizing:"border-box"}}>
+          {/* Mobile collapsible drawer */}
+          {isMobile && sidebarOpen && (
+            <div style={{ width:"100%", background:"#0f1623", borderRadius:10,
+              border:"1px solid #1e2a3a", padding:14, boxSizing:"border-box" }}>
 
             <div style={{marginBottom:13}}>
-              <div style={{color:"#1e6060",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>MODULATION MODE</div>
+              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>MODULATION MODE</div>
               {[["dsbfc","DSB-FC  (full carrier)"],["dsbsc","DSB-SC  (suppressed)"],
                 ["ssb","SSB-USB  (single side)"],["vsb","VSB  (vestigial)"]].map(([v,l])=>(
                 <button key={v} onClick={()=>setMode(v)}
@@ -673,7 +743,7 @@ export default function AMToolbox() {
             </div>
 
             <div style={{marginBottom:13}}>
-              <div style={{color:"#1e6060",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>TONE TYPE</div>
+              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>TONE TYPE</div>
               <div style={{display:"flex",gap:5}}>
                 {[["single","Single Tone"],["double","Double Tone"]].map(([v,l])=>(
                   <button key={v} onClick={()=>setTone(v)}
@@ -682,96 +752,97 @@ export default function AMToolbox() {
               </div>
             </div>
 
-            <div style={{marginBottom:13,background:"#020a0a",border:"1px solid #0c3030",borderRadius:6,padding:"10px 10px 6px"}}>
-              <div style={{color:"#1e6060",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>ANIMATION</div>
+            <div style={{marginBottom:13,background:"#0b0f1a",border:"1px solid #1e2a3a",borderRadius:6,padding:"10px 10px 6px"}}>
+              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>ANIMATION</div>
               <Slider label="Scroll Speed" val={animSpeed} min={0} max={10} step={0.5} unit="×"
-                onChange={setAnimSpeed} color={animSpeed===0?"#ffcc44":"#00ff88"}/>
-              <div style={{fontSize:10,color:animSpeed===0?"#ffcc44":"#00ff88",marginTop:-3,marginBottom:2}}>
+                onChange={setAnimSpeed} color={animSpeed===0?"#fbbf24":"#4ade80"}/>
+              <div style={{fontSize:10,color:animSpeed===0?"#fbbf24":"#4ade80",marginTop:-3,marginBottom:2}}>
                 {animSpeed===0?"⏸ FROZEN — stable view":`▶ LIVE — speed ${animSpeed}×`}
               </div>
             </div>
 
-            <div style={{borderTop:"1px solid #0a2424",paddingTop:10,marginBottom:8}}>
-              <div style={{color:"#1e6060",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>CARRIER</div>
+            <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10,marginBottom:8}}>
+              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>CARRIER</div>
               <Slider label="Ac — Amplitude" val={Ac} min={0.5} max={5} step={0.1} unit=" V" onChange={setAc}/>
-              <Slider label="fc — Frequency"  val={fc} min={2000} max={50000} step={500} unit=" Hz" onChange={setFc} color="#6bf5ff"/>
+              <Slider label="fc — Frequency"  val={fc} min={2000} max={50000} step={500} unit=" Hz" onChange={setFc} color="#22d3ee"/>
             </div>
 
-            <div style={{borderTop:"1px solid #0a2424",paddingTop:10,marginBottom:8}}>
-              <div style={{color:"#1e6060",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>MESSAGE 1</div>
-              <Slider label="Am₁ — Amplitude" val={Am1} min={0.1} max={5} step={0.1} unit=" V" onChange={setAm1} color="#ff6b6b"/>
-              <Slider label="fm₁ — Frequency"  val={fm1} min={100} max={5000} step={50} unit=" Hz" onChange={setFm1} color="#ff6b6b"/>
-              {mode==="dsbfc"&&<Slider label="μ₁ — Mod. Index" val={mu1} min={0.01} max={2} step={0.01} unit="" onChange={setMu1} color="#ff6b6b"/>}
-              <Slider label="φ₁ — Phase" val={phi1} min={-180} max={180} step={5} unit="°" onChange={setPhi1} color="#ff6b6b"/>
+            <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10,marginBottom:8}}>
+              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>MESSAGE 1</div>
+              <Slider label="Am₁ — Amplitude" val={Am1} min={0.1} max={5} step={0.1} unit=" V" onChange={setAm1} color="#f47266"/>
+              <Slider label="fm₁ — Frequency"  val={fm1} min={100} max={5000} step={50} unit=" Hz" onChange={setFm1} color="#f47266"/>
+              {mode==="dsbfc"&&<Slider label="μ₁ — Mod. Index" val={mu1} min={0.01} max={2} step={0.01} unit="" onChange={setMu1} color="#f47266"/>}
+              <Slider label="φ₁ — Phase" val={phi1} min={-180} max={180} step={5} unit="°" onChange={setPhi1} color="#f47266"/>
             </div>
 
             {tone==="double"&&(
-              <div style={{borderTop:"1px solid #0a2424",paddingTop:10,marginBottom:8}}>
-                <div style={{color:"#1e6060",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>MESSAGE 2</div>
-                <Slider label="Am₂ — Amplitude" val={Am2} min={0.1} max={5} step={0.1} unit=" V" onChange={setAm2} color="#ffcc44"/>
-                <Slider label="fm₂ — Frequency"  val={fm2} min={100} max={5000} step={50} unit=" Hz" onChange={setFm2} color="#ffcc44"/>
-                {mode==="dsbfc"&&<Slider label="μ₂ — Mod. Index" val={mu2} min={0.01} max={2} step={0.01} unit="" onChange={setMu2} color="#ffcc44"/>}
-                <Slider label="φ₂ — Phase" val={phi2} min={-180} max={180} step={5} unit="°" onChange={setPhi2} color="#ffcc44"/>
+              <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10,marginBottom:8}}>
+                <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>MESSAGE 2</div>
+                <Slider label="Am₂ — Amplitude" val={Am2} min={0.1} max={5} step={0.1} unit=" V" onChange={setAm2} color="#fbbf24"/>
+                <Slider label="fm₂ — Frequency"  val={fm2} min={100} max={5000} step={50} unit=" Hz" onChange={setFm2} color="#fbbf24"/>
+                {mode==="dsbfc"&&<Slider label="μ₂ — Mod. Index" val={mu2} min={0.01} max={2} step={0.01} unit="" onChange={setMu2} color="#fbbf24"/>}
+                <Slider label="φ₂ — Phase" val={phi2} min={-180} max={180} step={5} unit="°" onChange={setPhi2} color="#fbbf24"/>
               </div>
             )}
 
-            <div style={{borderTop:"1px solid #0a2424",paddingTop:10}}>
-              <div style={{color:"#1e6060",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>DISPLAY</div>
-              <Slider label="Cycles Shown" val={cycles} min={1} max={10} step={1} unit="" onChange={setCycles} color="#b86bff"/>
+            <div style={{borderTop:"1px solid #1e2a3a",paddingTop:10}}>
+              <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:7,fontWeight:"bold"}}>DISPLAY</div>
+              <Slider label="Cycles Shown" val={cycles} min={1} max={10} step={1} unit="" onChange={setCycles} color="#a78bfa"/>
               <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginTop:7}}>
-                <input type="checkbox" checked={showEnv} onChange={e=>setShowEnv(e.target.checked)} style={{accentColor:"#ffcc44"}}/>
-                <span style={{color:"#4a9090",fontSize:11}}>Show envelope trace</span>
+                <input type="checkbox" checked={showEnv} onChange={e=>setShowEnv(e.target.checked)} style={{accentColor:"#fbbf24"}}/>
+                <span style={{color:"#94a3b8",fontSize:11}}>Show envelope trace</span>
               </label>
             </div>
           </div>
+          )}
 
           {/* ═══ MAIN PANEL ═══ */}
           <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:12}}>
 
             {/* Signal type + Noise */}
             <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"stretch"}}>
-              <div style={{background:"#040f0f",border:"1px solid #0a2828",borderRadius:8,padding:"12px 16px",flex:"2 1 400px"}}>
-                <div style={{color:"#1e6060",fontSize:10,letterSpacing:2,marginBottom:10,fontWeight:"bold"}}>MESSAGE SIGNAL SHAPE</div>
+              <div style={{background:"#0f1623",border:"1px solid #1e2a3a",borderRadius:10,padding:"12px 16px",flex:"2 1 400px"}}>
+                <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:10,fontWeight:"bold"}}>MESSAGE SIGNAL SHAPE</div>
                 <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
                   {SIG_TYPES.map(({id,label,color})=>(
                     <div key={id} onClick={()=>setSigType(id)} style={{
                       cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:5,
                       background:sigType===id?`${color}15`:"transparent",
-                      border:`1px solid ${sigType===id?color+"66":"#0d2828"}`,
-                      borderRadius:6,padding:"8px 10px",transition:"all 0.15s"}}>
+                      border:`1px solid ${sigType===id?color+"66":"#1e2a3a"}`,
+                      borderRadius:8,padding:"8px 10px",transition:"all 0.15s"}}>
                       <SignalPreview type={id} color={color} dutyCycle={dutyCycle}/>
-                      <span style={{color:sigType===id?color:"#2a6868",fontSize:11,fontWeight:"bold",fontFamily:"monospace"}}>{label}</span>
+                      <span style={{color:sigType===id?color:"#334155",fontSize:11,fontWeight:"bold",fontFamily:"monospace"}}>{label}</span>
                     </div>
                   ))}
                 </div>
                 {sigType==="pulse"&&(
                   <div style={{marginTop:10,maxWidth:360}}>
-                    <Slider label="Duty Cycle" val={dutyCycle} min={0.05} max={0.95} step={0.05} unit="" onChange={setDutyCycle} color="#6bf5ff"/>
+                    <Slider label="Duty Cycle" val={dutyCycle} min={0.05} max={0.95} step={0.05} unit="" onChange={setDutyCycle} color="#22d3ee"/>
                   </div>
                 )}
               </div>
 
-              <div style={{background:"#040f0f",border:`1px solid ${noiseOn?"#ff6b6b44":"#0a2828"}`,borderRadius:8,padding:"12px 16px",flex:"1 1 220px"}}>
+              <div style={{background:"#0f1623",border:`1px solid ${noiseOn?"#f4726644":"#1e2a3a"}`,borderRadius:10,padding:"12px 16px",flex:"1 1 220px"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                  <div style={{color:"#1e6060",fontSize:10,letterSpacing:2,fontWeight:"bold"}}>AWGN NOISE</div>
+                  <div style={{color:"#64748b",fontSize:10,letterSpacing:2,fontWeight:"bold"}}>AWGN NOISE</div>
                   <label style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer"}}>
-                    <input type="checkbox" checked={noiseOn} onChange={e=>setNoiseOn(e.target.checked)} style={{accentColor:"#ff6b6b"}}/>
-                    <span style={{color:noiseOn?"#ff6b6b":"#2a6868",fontSize:11,fontWeight:"bold"}}>{noiseOn?"ENABLED":"OFF"}</span>
+                    <input type="checkbox" checked={noiseOn} onChange={e=>setNoiseOn(e.target.checked)} style={{accentColor:"#f47266"}}/>
+                    <span style={{color:noiseOn?"#f47266":"#334155",fontSize:11,fontWeight:"bold"}}>{noiseOn?"ENABLED":"OFF"}</span>
                   </label>
                 </div>
                 {noiseOn&&(<>
-                  <Slider label="SNR (dB)" val={snrDb} min={0} max={40} step={1} unit=" dB" onChange={setSnrDb} color="#ff6b6b"/>
+                  <Slider label="SNR (dB)" val={snrDb} min={0} max={40} step={1} unit=" dB" onChange={setSnrDb} color="#f47266"/>
                   <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
                     {[0,5,10,20,30,40].map(v=>(
                       <button key={v} onClick={()=>setSnrDb(v)}
-                        style={{...btnStyle(snrDb===v,"#ff6b6b"),fontSize:10,padding:"3px 9px"}}>{v}dB</button>
+                        style={{...btnStyle(snrDb===v,"#f47266"),fontSize:10,padding:"3px 9px"}}>{v}dB</button>
                     ))}
                   </div>
-                  <div style={{fontSize:11,color:snrDb<5?"#ff4444":snrDb<15?"#ffcc44":"#00ff88",fontWeight:"bold"}}>
+                  <div style={{fontSize:11,color:snrDb<5?"#f47266":snrDb<15?"#fbbf24":"#4ade80",fontWeight:"bold"}}>
                     {snrDb<5?"⚠ Severe noise":snrDb<10?"⚠ Very noisy":snrDb<20?"△ Moderate noise":snrDb<30?"◎ Acceptable":"✓ Clean channel"}
                   </div>
                 </>)}
-                {!noiseOn&&<div style={{color:"#1a4444",fontSize:11,marginTop:4,lineHeight:1.6}}>
+                {!noiseOn&&<div style={{color:"#1e2a3a",fontSize:11,marginTop:4,lineHeight:1.6}}>
                   Enable to inject Additive White<br/>Gaussian Noise into s(t)
                 </div>}
               </div>
@@ -780,17 +851,17 @@ export default function AMToolbox() {
             {/* Metrics */}
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               <MCard label="Total Power"   val={metrics.Pt+" W"}  sub="Pt = Pc + Psb"/>
-              <MCard label="Carrier Power" val={metrics.Pc+" W"}  color="#6bf5ff" sub="Pc = Ac²/2"/>
-              <MCard label="Efficiency"    val={metrics.eff+"%"}  color={parseFloat(metrics.eff)<50?"#ff6b6b":"#00ffcc"} sub="η = Psb / Pt"/>
-              <MCard label="Bandwidth"     val={metrics.bw}       color="#ffcc44" sub={mode==="ssb"?"BW = fm":mode==="vsb"?"BW ≈ 1.25·fm":"BW = 2·fm"}/>
-              {mode==="dsbfc"&&<MCard label="Mod. Index μ" val={metrics.muTot} color={metrics.overmod?"#ff4444":"#b86bff"} sub={metrics.overmod?"⚠ OVERMOD!":"μ < 1  ✓"}/>}
+              <MCard label="Carrier Power" val={metrics.Pc+" W"}  color="#22d3ee" sub="Pc = Ac²/2"/>
+              <MCard label="Efficiency"    val={metrics.eff+"%"}  color={parseFloat(metrics.eff)<50?"#f47266":"#4ade80"} sub="η = Psb / Pt"/>
+              <MCard label="Bandwidth"     val={metrics.bw}       color="#fbbf24" sub={mode==="ssb"?"BW = fm":mode==="vsb"?"BW ≈ 1.25·fm":"BW = 2·fm"}/>
+              {mode==="dsbfc"&&<MCard label="Mod. Index μ" val={metrics.muTot} color={metrics.overmod?"#f47266":"#a78bfa"} sub={metrics.overmod?"⚠ OVERMOD!":"μ < 1  ✓"}/>}
               <MCard label="Signal Shape"  val={SIG_TYPES.find(s=>s.id===sigType)?.label} color={sigColor} sub={noiseOn?`SNR = ${snrDb} dB`:"No noise"}/>
             </div>
 
             {mode==="dsbfc"&&metrics.overmod&&(
-              <div style={{background:"#1a0208",border:"1px solid #ff4444",borderRadius:6,padding:"9px 16px",fontSize:12,color:"#ff8080",lineHeight:1.7}}>
+              <div style={{background:"#1f0a0a",border:"1px solid #f4726666",borderRadius:8,padding:"9px 16px",fontSize:12,color:"#f47266",lineHeight:1.7}}>
                 ⚠  <strong>OVERMODULATION</strong>  —  μ = {metrics.muTot} &gt; 1  &nbsp;
-                <span style={{fontSize:11,color:"#aa5555"}}>The envelope crosses zero → envelope detector output is clipped and distorted.</span>
+                <span style={{fontSize:11,opacity:0.7}}>The envelope crosses zero → envelope detector output is clipped and distorted.</span>
               </div>
             )}
 
@@ -805,15 +876,15 @@ export default function AMToolbox() {
             {tab==="time"&&(
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap",
-                  background:"#040f0f",border:"1px solid #0a2828",borderRadius:6,padding:"8px 14px"}}>
-                  <span style={{color:"#1e6060",fontSize:10,letterSpacing:1,fontWeight:"bold"}}>TIME DOMAIN  ·  THREE SIGNAL VIEW</span>
-                  <div style={{flex:1,height:1,background:"#0a2424",minWidth:20}}/>
+                  background:"#0f1623",border:"1px solid #0a2828",borderRadius:6,padding:"8px 14px"}}>
+                  <span style={{color:"#64748b",fontSize:10,letterSpacing:1,fontWeight:"bold"}}>TIME DOMAIN  ·  THREE SIGNAL VIEW</span>
+                  <div style={{flex:1,height:1,background:"#1e2a3a",minWidth:20}}/>
                   <span style={{fontSize:10,color:"#1a5858"}}>🖱 scroll to zoom</span>
                   <div style={{display:"flex",gap:4,alignItems:"center"}}>
                     <button onClick={handleZoomOut}  style={{...btnStyle(false),padding:"4px 12px",fontSize:16,lineHeight:1}}>−</button>
                     <div style={{background:"#021616",border:"1px solid #0a3030",borderRadius:4,
                       padding:"4px 14px",minWidth:60,textAlign:"center",
-                      color:"#00ffcc",fontSize:13,fontFamily:"monospace",fontWeight:"bold"}}>
+                      color:"#22d3ee",fontSize:13,fontFamily:"monospace",fontWeight:"bold"}}>
                       {zoomLevel.toFixed(1)}×
                     </div>
                     <button onClick={handleZoomIn}   style={{...btnStyle(false),padding:"4px 12px",fontSize:16,lineHeight:1}}>+</button>
@@ -821,17 +892,17 @@ export default function AMToolbox() {
                   </div>
                   {zoomLevel>1&&(
                     <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                      <span style={{color:"#2a6868",fontSize:10}}>PAN</span>
+                      <span style={{color:"#334155",fontSize:10}}>PAN</span>
                       <button onClick={handlePanLeft}  style={{...btnStyle(false),padding:"4px 12px",fontSize:14}}>◀</button>
                       <div style={{background:"#021616",border:"1px solid #0a3030",borderRadius:4,
                         padding:"4px 10px",minWidth:50,textAlign:"center",
-                        color:"#4a9090",fontSize:10,fontFamily:"monospace"}}>
+                        color:"#94a3b8",fontSize:10,fontFamily:"monospace"}}>
                         {(panOffset*100).toFixed(0)}%
                       </div>
                       <button onClick={handlePanRight} style={{...btnStyle(false),padding:"4px 12px",fontSize:14}}>▶</button>
                     </div>
                   )}
-                  <span style={{fontSize:10,color:animSpeed===0?"#ffcc44":"#00ff88",marginLeft:"auto"}}>
+                  <span style={{fontSize:10,color:animSpeed===0?"#fbbf24":"#4ade80",marginLeft:"auto"}}>
                     {animSpeed===0?"⏸ FROZEN":`▶ SCROLLING ${animSpeed}×`}
                   </span>
                 </div>
@@ -845,7 +916,7 @@ export default function AMToolbox() {
             {/* ══ SPECTRUM ══ */}
             {tab==="spectrum"&&(
               <div>
-                <div style={{color:"#1e6060",fontSize:10,letterSpacing:2,marginBottom:10,fontWeight:"bold"}}>
+                <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:10,fontWeight:"bold"}}>
                   FREQUENCY DOMAIN  ·  SPECTRAL LINE DIAGRAM
                 </div>
                 <SpecCanvas lines={specLines}/>
@@ -853,19 +924,19 @@ export default function AMToolbox() {
                   {specLines.map((l,i)=>(
                     <div key={i} style={{background:"#040e0e",border:`1px solid ${l.color}30`,borderRadius:5,padding:"8px 14px",fontSize:11}}>
                       <span style={{color:l.color,fontWeight:"bold"}}>{l.label}</span>
-                      <span style={{color:"#4a9090",marginLeft:10}}>{(l.f/1000).toFixed(2)} kHz</span>
+                      <span style={{color:"#94a3b8",marginLeft:10}}>{(l.f/1000).toFixed(2)} kHz</span>
                       <span style={{color:"#2a7070",marginLeft:10}}>A = {l.amp.toFixed(3)}</span>
                     </div>
                   ))}
                 </div>
                 <div style={{marginTop:10,fontSize:12,color:"#2a7070",lineHeight:1.8,
                   background:"#040e0e",border:"1px solid #0d2828",borderRadius:5,padding:"10px 14px"}}>
-                  <strong style={{color:"#1e6060"}}>Bandwidth:</strong>{" "}
+                  <strong style={{color:"#64748b"}}>Bandwidth:</strong>{" "}
                   {mode==="dsbfc"&&`DSB-FC  BW = 2 × fm = ${(2*fm1/1000).toFixed(2)} kHz`}
                   {mode==="dsbsc"&&`DSB-SC  BW = 2 × fm = ${(2*fm1/1000).toFixed(2)} kHz  (no carrier power)`}
                   {mode==="ssb"  &&`SSB  BW = fm = ${(fm1/1000).toFixed(2)} kHz  (half of DSB)`}
                   {mode==="vsb"  &&`VSB  BW ≈ 1.25 × fm = ${(1.25*fm1/1000).toFixed(2)} kHz`}
-                  {noiseOn&&<span style={{color:"#ff6b6b",marginLeft:16}}>⚠ SNR = {snrDb} dB</span>}
+                  {noiseOn&&<span style={{color:"#f47266",marginLeft:16}}>⚠ SNR = {snrDb} dB</span>}
                 </div>
               </div>
             )}
@@ -875,35 +946,35 @@ export default function AMToolbox() {
               <div style={{display:"flex",gap:24,alignItems:"flex-start",flexWrap:"wrap"}}>
                 <PhasorCanvas mu={muDisp} mode={mode}/>
                 <div style={{flex:1,minWidth:260}}>
-                  <div style={{color:"#1e6060",fontSize:10,letterSpacing:2,marginBottom:12,fontWeight:"bold"}}>PHASOR REPRESENTATION</div>
-                  <div style={{fontSize:13,color:"#4a9090",lineHeight:2.1}}>
+                  <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:12,fontWeight:"bold"}}>PHASOR REPRESENTATION</div>
+                  <div style={{fontSize:13,color:"#94a3b8",lineHeight:2.1}}>
                     {mode==="dsbfc"&&<>
-                      <div style={{color:"#00ffcc",fontWeight:"bold",marginBottom:6}}>DSB-FC  =  Carrier + USB + LSB</div>
+                      <div style={{color:"#22d3ee",fontWeight:"bold",marginBottom:6}}>DSB-FC  =  Carrier + USB + LSB</div>
                       <div>s(t) = Ac·cos(2πfc·t)</div>
                       <div style={{paddingLeft:20,color:"#ff8080"}}>+  (μ·Ac/2)·cos(2π(fc+fm)·t)  ←  Upper Sideband</div>
                       <div style={{paddingLeft:20,color:"#7aeeff"}}>+  (μ·Ac/2)·cos(2π(fc−fm)·t)  ←  Lower Sideband</div>
-                      <div style={{marginTop:10,color:muDisp>1?"#ff4444":"#b86bff",fontWeight:"bold"}}>
+                      <div style={{marginTop:10,color:muDisp>1?"#ff4444":"#a78bfa",fontWeight:"bold"}}>
                         μ = {muDisp.toFixed(3)}  {muDisp>1?"⚠  OVERMODULATION":"✓  Normal"}
                       </div>
                     </>}
                     {mode==="dsbsc"&&<>
-                      <div style={{color:"#6bf5ff",fontWeight:"bold",marginBottom:6}}>DSB-SC  =  USB + LSB  (no carrier)</div>
+                      <div style={{color:"#22d3ee",fontWeight:"bold",marginBottom:6}}>DSB-SC  =  USB + LSB  (no carrier)</div>
                       <div>s(t) = m(t) · cos(2πfc·t)</div>
                       <div style={{paddingLeft:20,color:"#ff8080"}}>=  (Am/2)·cos(2π(fc+fm)·t)  ←  USB</div>
                       <div style={{paddingLeft:20,color:"#7aeeff"}}>+  (Am/2)·cos(2π(fc−fm)·t)  ←  LSB</div>
                     </>}
                     {mode==="ssb"&&<>
-                      <div style={{color:"#ff6b6b",fontWeight:"bold",marginBottom:6}}>SSB-USB  =  Upper Sideband Only</div>
+                      <div style={{color:"#f47266",fontWeight:"bold",marginBottom:6}}>SSB-USB  =  Upper Sideband Only</div>
                       <div>s(t) = (Am/2)·cos(2π(fc+fm)·t)</div>
                     </>}
                     {mode==="vsb"&&<>
-                      <div style={{color:"#ffcc44",fontWeight:"bold",marginBottom:6}}>VSB  =  USB + Vestigial LSB</div>
+                      <div style={{color:"#fbbf24",fontWeight:"bold",marginBottom:6}}>VSB  =  USB + Vestigial LSB</div>
                       <div>s(t) = (Am/2)·cos(2π(fc+fm)·t)</div>
                       <div style={{paddingLeft:20,color:"#7aeeff"}}>+  (Am/8)·cos(2π(fc−fm)·t)  ←  Vestige</div>
                     </>}
                   </div>
                   <div style={{marginTop:16,background:"#040e0e",border:"1px solid #0d2828",borderRadius:6,padding:12}}>
-                    <div style={{color:"#1e6060",fontSize:10,letterSpacing:1,marginBottom:8,fontWeight:"bold"}}>SIGNAL SHAPE — HARMONIC CONTENT</div>
+                    <div style={{color:"#64748b",fontSize:10,letterSpacing:1,marginBottom:8,fontWeight:"bold"}}>SIGNAL SHAPE — HARMONIC CONTENT</div>
                     <div style={{fontSize:12,color:"#4a8080",lineHeight:1.8}}>
                       <div><span style={{color:sigColor}}>▸ {SIG_TYPES.find(s=>s.id===sigType)?.label} wave</span> — currently selected</div>
                       {sigType==="sine"     &&<div>Pure single tone — only the fundamental frequency.</div>}
@@ -921,16 +992,16 @@ export default function AMToolbox() {
             {tab==="demod"&&(
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,
-                  background:"#040f0f",border:"1px solid #0a2828",borderRadius:6,padding:"8px 14px",flexWrap:"wrap"}}>
-                  <span style={{color:"#1e6060",fontSize:10,letterSpacing:1,fontWeight:"bold"}}>
+                  background:"#0f1623",border:"1px solid #0a2828",borderRadius:6,padding:"8px 14px",flexWrap:"wrap"}}>
+                  <span style={{color:"#64748b",fontSize:10,letterSpacing:1,fontWeight:"bold"}}>
                     DEMODULATION LAB  ·  {
                       mode==="dsbfc"?"ENVELOPE DETECTION":
                       mode==="dsbsc"?"SYNCHRONOUS DETECTION":
                       mode==="ssb" ?"COHERENT DETECTION":
                       "COHERENT + VSB FILTER"}
                   </span>
-                  <div style={{flex:1,height:1,background:"#0a2424",minWidth:20}}/>
-                  <span style={{fontSize:10,color:animSpeed===0?"#ffcc44":"#00ff88"}}>
+                  <div style={{flex:1,height:1,background:"#1e2a3a",minWidth:20}}/>
+                  <span style={{fontSize:10,color:animSpeed===0?"#fbbf24":"#4ade80"}}>
                     {animSpeed===0?"⏸ FROZEN":`▶ LIVE`}
                   </span>
                 </div>
@@ -943,6 +1014,28 @@ export default function AMToolbox() {
           </div>{/* end main panel */}
         </div>{/* end body */}
       </div>{/* end inner wrapper */}
+    </div>
+  );
+}
+
+// ── Root App with landing screen routing ─────────────────────────────────────
+export default function App() {
+  const [domain, setDomain] = useState(null);
+  if (!domain) return <LandingScreen onSelect={setDomain} />;
+  if (domain === "am") return <AMToolbox onBack={() => setDomain(null)} />;
+  return (
+    <div style={{ minHeight:"100vh", background:"#0b0f1a",
+      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+      fontFamily:"'Segoe UI',system-ui,sans-serif", color:"#64748b" }}>
+      <div style={{ fontSize:52, marginBottom:20 }}>{domain==="fm"?"≋":"∿"}</div>
+      <div style={{ fontSize:22, fontWeight:800, color:"#e2e8f0", marginBottom:8 }}>
+        {domain==="fm"?"FM Toolbox":"PM Toolbox"} — Coming Soon
+      </div>
+      <div style={{ fontSize:13, marginBottom:32, opacity:0.5 }}>Building this next...</div>
+      <button onClick={() => setDomain(null)} style={{
+        background:"#131929", border:"1px solid #1e2a3a", borderRadius:10,
+        padding:"10px 28px", cursor:"pointer", color:"#e2e8f0", fontSize:14,
+      }}>← Back to Menu</button>
     </div>
   );
 }
