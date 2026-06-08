@@ -18,48 +18,143 @@ function useIsMobile() {
 // ── Landing screen ───────────────────────────────────────────────────────────
 function LandingScreen({ onSelect }) {
   const modes = [
-    { id:"am", abbr:"AM", label:"Amplitude Modulation", desc:"DSB-FC · DSB-SC · SSB · VSB", sub:"Vary carrier amplitude with message", icon:"〜", color:"#22d3ee" },
-    { id:"fm", abbr:"FM", label:"Frequency Modulation",  desc:"Wideband · Narrowband · β sweep", sub:"Vary carrier frequency with message", icon:"≋", color:"#a78bfa" },
-    { id:"pm", abbr:"PM", label:"Phase Modulation",       desc:"Phase deviation · kp sweep", sub:"Vary carrier phase with message", icon:"∿", color:"#f472b6" },
+    {
+      id:"am", abbr:"AM", label:"Amplitude Modulation",
+      desc:["DSB-FC","DSB-SC","SSB","VSB"],
+      sub:"Vary carrier amplitude with message signal",
+      color:"#22d3ee", glow:"#22d3ee33",
+      svgPath:"M10,20 Q17,4 24,20 Q31,36 38,20 Q45,4 52,20 Q59,36 66,20 Q73,4 80,20",
+    },
+    {
+      id:"fm", abbr:"FM", label:"Frequency Modulation",
+      desc:["Wideband","Narrowband","β sweep"],
+      sub:"Vary carrier frequency with message signal",
+      color:"#a78bfa", glow:"#a78bfa33",
+      svgPath:"M10,20 Q13,18 16,20 Q19,22 22,20 Q24,12 27,20 Q30,28 33,20 Q36,8 40,20 Q44,32 48,20 Q51,14 54,20 Q57,22 60,20 Q63,18 66,20 Q69,22 72,20 Q75,18 78,20 Q81,22 84,20",
+    },
+    {
+      id:"pm", abbr:"PM", label:"Phase Modulation",
+      desc:["Phase deviation","kp sweep"],
+      sub:"Vary carrier phase with message signal",
+      color:"#f472b6", glow:"#f472b633",
+      svgPath:"M10,20 Q20,20 28,8 Q32,2 36,20 Q40,38 44,20 Q48,2 52,20 Q56,38 60,20 Q64,8 68,20 Q76,20 86,20",
+    },
   ];
+
   return (
-    <div style={{ minHeight:"100vh", background:"#0b0f1a",
+    <div style={{
+      minHeight:"100vh", background:"#070c18",
       display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-      fontFamily:"'Segoe UI',system-ui,sans-serif", padding:"24px 16px" }}>
-      <div style={{ textAlign:"center", marginBottom:48 }}>
-        <div style={{ display:"inline-block", background:"rgba(34,211,238,0.08)",
-          border:"1px solid rgba(34,211,238,0.18)", borderRadius:20, padding:"5px 18px",
-          fontSize:11, color:"#64748b", letterSpacing:3, marginBottom:18, textTransform:"uppercase" }}>
-          EC401 · Analog Communication · MAKAUT
+      fontFamily:"'Segoe UI',system-ui,sans-serif", padding:"32px 20px",
+      backgroundImage:"radial-gradient(ellipse 80% 50% at 50% -10%, #0d1f3c, transparent)",
+    }}>
+      {/* Header */}
+      <div style={{ textAlign:"center", marginBottom:56 }}>
+        <div style={{
+          display:"inline-flex", alignItems:"center", gap:10,
+          background:"rgba(34,211,238,0.06)", border:"1px solid rgba(34,211,238,0.15)",
+          borderRadius:24, padding:"7px 20px", marginBottom:24,
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round">
+            <path d="M2,12 Q5,4 8,12 Q11,20 14,12 Q17,4 20,12 Q23,20 26,12"/>
+          </svg>
+          <span style={{ color:"#22d3ee", fontSize:12, fontWeight:600, letterSpacing:2, textTransform:"uppercase" }}>
+            Signal Modulation Lab
+          </span>
         </div>
-        <h1 style={{ margin:"0 0 12px", fontSize:"clamp(26px,6vw,46px)", fontWeight:900,
-          background:"linear-gradient(135deg,#22d3ee,#a78bfa)",
-          WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:-1 }}>
-          Signal Modulation Lab
+        <h1 style={{
+          margin:"0 0 14px",
+          fontSize:"clamp(32px,5vw,56px)",
+          fontWeight:900,
+          color:"#e2e8f0",
+          letterSpacing:-1.5,
+          lineHeight:1.1,
+          padding:"4px 0",          // ← prevents gradient clip on descenders
+        }}>
+          Analog Communications
         </h1>
-        <p style={{ color:"#64748b", fontSize:15, margin:0 }}>Select a modulation type to explore</p>
+        <p style={{ color:"#4a5a70", fontSize:15, margin:0, letterSpacing:0.3 }}>
+          Select a modulation type to begin exploring
+        </p>
       </div>
-      <div style={{ display:"flex", gap:20, flexWrap:"wrap", justifyContent:"center", maxWidth:880, width:"100%" }}>
+
+      {/* Cards */}
+      <div style={{ display:"flex", gap:24, flexWrap:"wrap", justifyContent:"center", maxWidth:960, width:"100%" }}>
         {modes.map(m => (
           <button key={m.id} onClick={() => onSelect(m.id)} style={{
-            flex:"1 1 220px", maxWidth:265, background:"#131929",
-            border:"1px solid #1e2a3a", borderRadius:18, padding:"28px 24px",
+            flex:"1 1 240px", maxWidth:288,
+            background:"linear-gradient(160deg, #0f1828 0%, #0a1020 100%)",
+            border:`1px solid #1a2535`,
+            borderRadius:20, padding:"0",
             cursor:"pointer", textAlign:"left", outline:"none",
-            transition:"transform 0.15s,border-color 0.15s,box-shadow 0.15s",
+            transition:"transform 0.18s, border-color 0.18s, box-shadow 0.18s",
+            overflow:"hidden",
           }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor=m.color; e.currentTarget.style.transform="translateY(-4px)"; e.currentTarget.style.boxShadow=`0 12px 40px ${m.color}25`; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor="#1e2a3a"; e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="none"; }}>
-            <div style={{ fontSize:38, marginBottom:14, lineHeight:1 }}>{m.icon}</div>
-            <div style={{ display:"inline-block", background:`${m.color}18`, color:m.color,
-              fontSize:10, fontWeight:800, letterSpacing:3, padding:"3px 10px",
-              borderRadius:6, marginBottom:12, textTransform:"uppercase" }}>{m.abbr}</div>
-            <div style={{ color:"#e2e8f0", fontSize:16, fontWeight:700, marginBottom:6 }}>{m.label}</div>
-            <div style={{ color:m.color, fontSize:11, fontFamily:"monospace", marginBottom:8 }}>{m.desc}</div>
-            <div style={{ color:"#64748b", fontSize:12, lineHeight:1.5 }}>{m.sub}</div>
+          onMouseEnter={e => {
+            e.currentTarget.style.borderColor = m.color + "88";
+            e.currentTarget.style.transform = "translateY(-6px)";
+            e.currentTarget.style.boxShadow = `0 20px 60px ${m.glow}`;
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.borderColor = "#1a2535";
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "none";
+          }}>
+            {/* Waveform preview strip */}
+            <div style={{
+              background:`linear-gradient(180deg, ${m.color}12 0%, transparent 100%)`,
+              borderBottom:`1px solid ${m.color}18`,
+              padding:"18px 20px 14px",
+            }}>
+              <svg viewBox="0 0 96 40" width="100%" height="44" style={{ display:"block", overflow:"visible" }}>
+                <path d={m.svgPath} stroke={m.color} strokeWidth="2.2" fill="none"
+                  style={{ filter:`drop-shadow(0 0 4px ${m.color}88)` }}/>
+              </svg>
+            </div>
+
+            {/* Card body */}
+            <div style={{ padding:"20px 22px 22px" }}>
+              <div style={{
+                display:"inline-block", background:`${m.color}18`, color:m.color,
+                fontSize:10, fontWeight:800, letterSpacing:3, padding:"4px 12px",
+                borderRadius:6, marginBottom:14, textTransform:"uppercase",
+                border:`1px solid ${m.color}30`,
+              }}>{m.abbr}</div>
+
+              <div style={{ color:"#dde4ee", fontSize:17, fontWeight:700, marginBottom:8, lineHeight:1.2 }}>
+                {m.label}
+              </div>
+
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
+                {m.desc.map(tag => (
+                  <span key={tag} style={{
+                    background:"#0d1624", color:m.color + "cc",
+                    fontSize:10, fontFamily:"monospace", fontWeight:600,
+                    padding:"3px 9px", borderRadius:5, border:`1px solid ${m.color}22`,
+                  }}>{tag}</span>
+                ))}
+              </div>
+
+              <div style={{ color:"#3d5070", fontSize:12, lineHeight:1.6 }}>{m.sub}</div>
+
+              {/* Arrow */}
+              <div style={{
+                marginTop:16, display:"flex", alignItems:"center", gap:6,
+                color: m.color, fontSize:12, fontWeight:600, opacity:0.7,
+              }}>
+                <span>Explore</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M5 12h14M13 6l6 6-6 6"/>
+                </svg>
+              </div>
+            </div>
           </button>
         ))}
       </div>
-      <div style={{ marginTop:48, color:"#1e2a3a", fontSize:11 }}>Apurba Maity · v6.0 · Live Waveforms</div>
+
+      <div style={{ marginTop:52, color:"#1a2535", fontSize:11, letterSpacing:1 }}>
+        Apurba Maity · v7.0 · Live Waveforms
+      </div>
     </div>
   );
 }
@@ -123,12 +218,29 @@ function buildSignals(p, timeOffset = 0) {
     envelope = modulated.map(v => Math.abs(v));
   }
 
-  const demodulated = envelope.map(v => (mode === "dsbfc" ? v - Ac : v));
-
   if (noiseOn) {
     const noise = generateNoise(SAMPLES, snrDb);
-    return { t, msg, carrier, modulated: modulated.map((v, i) => v + noise[i] * Ac * 0.5), envelope, demodulated };
+    const noisyMod = modulated.map((v, i) => v + noise[i] * Ac * 0.5);
+
+    // Demodulate from the NOISY received signal so noise affects demod output too
+    let noisyEnv;
+    if (mode === "dsbfc") {
+      // Envelope detection: rectify noisy signal + simple 5-tap RC smooth
+      const rect = noisyMod.map(Math.abs);
+      noisyEnv = rect.map((v, i) => {
+        const w = [rect[Math.max(0,i-2)], rect[Math.max(0,i-1)], v,
+                   rect[Math.min(rect.length-1,i+1)], rect[Math.min(rect.length-1,i+2)]];
+        return w.reduce((a,b)=>a+b,0)/w.length;
+      });
+    } else {
+      // Coherent detection: multiply noisy received by local carrier
+      noisyEnv = noisyMod.map((v, i) => Math.abs(v * Math.cos(TWO_PI * fc * t[i])));
+    }
+    const noisyDemod = noisyEnv.map(v => (mode === "dsbfc" ? v - Ac : v));
+    return { t, msg, carrier, modulated: noisyMod, envelope, demodulated: noisyDemod };
   }
+
+  const demodulated = envelope.map(v => (mode === "dsbfc" ? v - Ac : v));
   return { t, msg, carrier, modulated, envelope, demodulated };
 }
 
