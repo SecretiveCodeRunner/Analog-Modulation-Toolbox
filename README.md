@@ -130,6 +130,6 @@ Signal Processing
 The goal is to provide an intuitive and interactive environment for understanding modulation techniques beyond traditional textbook diagrams.
 
 
-Author
-Apurba Maity
+Author:
+Apurba Maity,
 Electronics and Communication Engineering
