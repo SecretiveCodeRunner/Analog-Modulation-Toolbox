@@ -71,7 +71,7 @@ function generateSignalSample(type, phase, dutyCycle = 0.5) {
     case "square":   return norm < TWO_PI * dutyCycle ? 1 : -1;
     case "triangle": return norm < Math.PI ? -1 + (2 / Math.PI) * norm : 3 - (2 / Math.PI) * norm;
     case "sawtooth": return -1 + norm / Math.PI;
-    case "pulse":    return norm < TWO_PI * 0.2 ? 1 : -1;
+    case "pulse":    return norm < TWO_PI * dutyCycle ? 1 : -1;
     default:         return Math.sin(phase);
   }
 }
@@ -769,9 +769,10 @@ function AMToolbox({ onBack }) {
   );
 
   return(
-    <div style={{ minHeight:"100vh", background:"#0b0f1a",
-      color:"#c0dada", fontFamily:"'Courier New',monospace", boxSizing:"border-box" }}>
-      <div style={{ padding: isMobile ? "10px 12px 24px" : "16px 28px 40px" }}>
+    <div style={{ minHeight:"100vh", width:"100%", background:"#0b0f1a",
+      color:"#c0dada", fontFamily:"'Courier New',monospace", boxSizing:"border-box",
+      overflowX:"hidden" }}>
+      <div style={{ padding: isMobile ? "10px 12px 24px" : "16px 28px 40px", width:"100%", boxSizing:"border-box" }}>
 
         {/* HEADER */}
         <div style={{ marginBottom:20, paddingBottom:12, borderBottom:"1px solid #1e2a3a",
