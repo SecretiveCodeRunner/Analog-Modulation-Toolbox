@@ -112,8 +112,8 @@ The toolbox calculates:
 Clone the repository:
 
 ```bash
-git clone https://github.com/<your-username>/<repository-name>.git
-cd <repository-name>
+git clone https://github.com/SecretiveCodeRunner/Analog-Modulation-Toolbox.git
+cd Analog-Modulation-Toolbox
 npm install
 npm run build
 npm run preview
