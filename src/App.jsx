@@ -99,7 +99,7 @@ function LandingScreen({ onSelect }) {
         ))}
       </div>
       <div style={{ marginTop:52, color:"#1a2535", fontSize:11, letterSpacing:1 }}>
-        Apurba Maity · v8.0 · AM + FM
+        Apurba Maity · v8.0 · AM + FM + PM
       </div>
     </div>
   );
@@ -118,10 +118,50 @@ function generateSignalSample(type, phase, dutyCycle=0.5) {
   }
 }
 
-function generateNoise(length, snrDb) {
-  if (snrDb >= 40) return new Array(length).fill(0);
-  const amp = Math.pow(10, -snrDb/20);
-  return Array.from({length}, () => (Math.random()*2-1)*amp);
+function generateNoise(signal, snrDb) {
+  const signalPower=signal.reduce((sum,v)=>sum+v*v,0)/signal.length;
+  const targetNoisePower=signalPower/Math.pow(10,snrDb/10);
+  const noise=[];
+  while(noise.length<signal.length){
+    const u1=Math.max(Math.random(),Number.EPSILON),u2=Math.random();
+    const mag=Math.sqrt(-2*Math.log(u1));
+    noise.push(mag*Math.cos(TWO_PI*u2));
+    if(noise.length<signal.length)noise.push(mag*Math.sin(TWO_PI*u2));
+  }
+  const mean=noise.reduce((sum,v)=>sum+v,0)/noise.length;
+  const centered=noise.map(v=>v-mean);
+  const measuredPower=centered.reduce((sum,v)=>sum+v*v,0)/centered.length;
+  const scale=Math.sqrt(targetNoisePower/Math.max(measuredPower,Number.EPSILON));
+  return centered.map(v=>v*scale);
+}
+
+function movingAverage(values,windowSize) {
+  const half=Math.floor(windowSize/2),prefix=new Array(values.length+1).fill(0);
+  for(let i=0;i<values.length;i++)prefix[i+1]=prefix[i]+values[i];
+  return values.map((_,i)=>{
+    const start=Math.max(0,i-half),end=Math.min(values.length,i+half+1);
+    return (prefix[end]-prefix[start])/(end-start);
+  });
+}
+
+function recoverBasebandPhase(received,t,fc,dt) {
+  const sampleRate=1/dt;
+  const nominalWindow=Math.round(sampleRate/(2*fc));
+  const windowSize=Math.max(3,Math.min(101,nominalWindow+(nominalWindow%2===0?1:0)));
+  const iMixed=received.map((v,i)=>2*v*Math.cos(TWO_PI*fc*t[i]));
+  const qMixed=received.map((v,i)=>-2*v*Math.sin(TWO_PI*fc*t[i]));
+  const iBase=movingAverage(movingAverage(iMixed,windowSize),windowSize);
+  const qBase=movingAverage(movingAverage(qMixed,windowSize),windowSize);
+  const wrapped=iBase.map((v,i)=>Math.atan2(qBase[i],v));
+  const unwrapped=new Array(wrapped.length);
+  unwrapped[0]=wrapped[0];
+  for(let i=1;i<wrapped.length;i++){
+    let step=wrapped[i]-wrapped[i-1];
+    while(step>Math.PI)step-=TWO_PI;
+    while(step<-Math.PI)step+=TWO_PI;
+    unwrapped[i]=unwrapped[i-1]+step;
+  }
+  return unwrapped;
 }
 
 // ── AM signal builder ────────────────────────────────────────────────────────
@@ -162,8 +202,8 @@ function buildAMSignals(p, timeOffset=0) {
     envelope = modulated.map(v=>Math.abs(v));
   }
   if (noiseOn) {
-    const noise = generateNoise(SAMPLES,snrDb);
-    const noisyMod = modulated.map((v,i)=>v+noise[i]*Ac*0.5);
+    const noise = generateNoise(modulated,snrDb);
+    const noisyMod = modulated.map((v,i)=>v+noise[i]);
     let noisyEnv;
     if (mode==="dsbfc") {
       const rect = noisyMod.map(Math.abs);
@@ -202,33 +242,64 @@ function buildFMSignals(p, timeOffset=0) {
   // FM: s(t) = Ac*cos(2π*fc*t + 2π*kf*∫m(τ)dτ)
   // Numerical integration of message
   let phase = 0;
-  const modulated = t.map((ti,i)=>{
-    const mVal = msg[i];
+  const modulated = t.map((ti)=>{
     phase += TWO_PI*(fc + kf1*Am1*generateSignalSample(sigType,TWO_PI*fm1*ti+r1,dutyCycle)
                        +(tone==="double"?kf2*Am2*generateSignalSample(sigType,TWO_PI*fm2*ti+r2,dutyCycle):0))*dt;
     return Ac*Math.cos(phase);
   });
-
-  // instantaneous frequency (normalised) for visualisation
-  const instFreq = t.map((ti)=>
-    fc + kf1*Am1*generateSignalSample(sigType,TWO_PI*fm1*ti+r1,dutyCycle)
-       + (tone==="double"?kf2*Am2*generateSignalSample(sigType,TWO_PI*fm2*ti+r2,dutyCycle):0)
-  );
 
   const carrier = t.map(ti=>Ac*Math.cos(TWO_PI*fc*ti));
   const envelope = new Array(SAMPLES).fill(Ac); // FM has constant envelope
 
   let finalMod = modulated;
   if (noiseOn) {
-    const noise = generateNoise(SAMPLES,snrDb);
-    finalMod = modulated.map((v,i)=>v+noise[i]*Ac*0.5);
+    const noise = generateNoise(modulated,snrDb);
+    finalMod = modulated.map((v,i)=>v+noise[i]);
   }
 
-  // FM demodulation: discriminator → differentiate instantaneous phase
-  // approximate by comparing consecutive samples
-  const demodulated = instFreq.map(f=>f-fc); // ideal discriminator output ≈ kf*m(t)
+  const recoveredPhase=recoverBasebandPhase(finalMod,t,fc,dt);
+  const rawDeviation=recoveredPhase.map((phase,i)=>{
+    const prev=recoveredPhase[Math.max(0,i-1)];
+    const next=recoveredPhase[Math.min(SAMPLES-1,i+1)];
+    const span=i===0||i===SAMPLES-1?dt:2*dt;
+    return (next-prev)/(TWO_PI*span);
+  });
+  const discriminatorWindow=Math.max(3,Math.min(101,Math.round((1/dt)/(2*fc))|1));
+  const recoveredDeviation=movingAverage(rawDeviation,discriminatorWindow);
+  const recoveredInstFreq=recoveredDeviation.map(v=>fc+v);
 
-  return {t,msg,carrier,modulated:finalMod,envelope,demodulated,instFreq};
+  return {t,msg,carrier,modulated:finalMod,envelope,demodulated:recoveredDeviation,instFreq:recoveredInstFreq};
+}
+
+// ── PM signal builder ────────────────────────────────────────────────────────
+function buildPMSignals(p, timeOffset=0) {
+  const {sigType,tone,Am1,Am2,Ac,fm1,fm2,fc,kp,phi1,phi2,cycles,dutyCycle,snrDb,noiseOn} = p;
+  const T = cycles/fm1;
+  const t = Array.from({length:SAMPLES},(_,i)=>timeOffset+(i/(SAMPLES-1))*T);
+  const r1=phi1*Math.PI/180, r2=phi2*Math.PI/180;
+  const dt=T/(SAMPLES-1);
+  const msg=t.map(ti=>
+    Am1*generateSignalSample(sigType,TWO_PI*fm1*ti+r1,dutyCycle)+
+    (tone==="double"?Am2*generateSignalSample(sigType,TWO_PI*fm2*ti+r2,dutyCycle):0)
+  );
+  const phaseDeviation=msg.map(m=>kp*m);
+  const carrier=t.map(ti=>Ac*Math.cos(TWO_PI*fc*ti));
+  const modulated=t.map((ti,i)=>Ac*Math.cos(TWO_PI*fc*ti+phaseDeviation[i]));
+  const instFreq=phaseDeviation.map((phase,i)=>{
+    const prev=phaseDeviation[Math.max(0,i-1)];
+    const next=phaseDeviation[Math.min(SAMPLES-1,i+1)];
+    const span=i===0||i===SAMPLES-1?dt:2*dt;
+    return fc+(next-prev)/(TWO_PI*span);
+  });
+  const envelope=new Array(SAMPLES).fill(Ac);
+  let finalMod=modulated;
+  if(noiseOn){
+    const noise=generateNoise(modulated,snrDb);
+    finalMod=modulated.map((v,i)=>v+noise[i]);
+  }
+  const recoveredPhase=recoverBasebandPhase(finalMod,t,fc,dt);
+  const demodulated=recoveredPhase.map(phase=>kp===0?0:phase/kp);
+  return {t,msg,carrier,modulated:finalMod,envelope,demodulated,instFreq,phaseDeviation:recoveredPhase};
 }
 
 // ── AM Spectrum ──────────────────────────────────────────────────────────────
@@ -291,6 +362,42 @@ function buildFMSpectrum(p) {
   return lines;
 }
 
+// ── PM Spectrum (numerical complex-envelope Fourier series) ──────────────────
+function buildPMSpectrum(p) {
+  const {sigType,tone,Am1,Am2,Ac,fm1,fm2,fc,kp,phi1,phi2,cycles,dutyCycle} = p;
+  const N=512;
+  const T=cycles/fm1;
+  const r1=phi1*Math.PI/180,r2=phi2*Math.PI/180;
+  const envelope=Array.from({length:N},(_,i)=>{
+    const ti=(i/N)*T;
+    const m=
+      Am1*generateSignalSample(sigType,TWO_PI*fm1*ti+r1,dutyCycle)+
+      (tone==="double"?Am2*generateSignalSample(sigType,TWO_PI*fm2*ti+r2,dutyCycle):0);
+    const phase=kp*m;
+    return {re:Math.cos(phase),im:Math.sin(phase)};
+  });
+  const candidates=[];
+  const maxBin=Math.min(80,Math.floor(N/2)-1);
+  for(let k=-maxBin;k<=maxBin;k++){
+    let re=0,im=0;
+    for(let n=0;n<N;n++){
+      const a=-TWO_PI*k*n/N;
+      re+=envelope[n].re*Math.cos(a)-envelope[n].im*Math.sin(a);
+      im+=envelope[n].re*Math.sin(a)+envelope[n].im*Math.cos(a);
+    }
+    const amp=(Ac/2)*Math.hypot(re,im)/N;
+    const offset=k/T;
+    if(amp>=0.003&&fc+offset>=0) candidates.push({k,offset,amp});
+  }
+  const selected=candidates.sort((a,b)=>b.amp-a.amp).slice(0,21).sort((a,b)=>a.offset-b.offset);
+  return selected.map(({k,offset,amp})=>({
+    f:fc+offset,
+    amp,
+    label:k===0?"Carrier":`${offset>0?"+":"−"}${Math.abs(offset/1000).toFixed(2)}k`,
+    color:k===0?"#f472b6":offset>0?"#f47266":"#22d3ee",
+  }));
+}
+
 function buildAMMetrics(p) {
   const {mode,tone,Am1,Am2,Ac,fm1,fm2,mu1,mu2} = p;
   let Pt,Pc,eff,bw,muTot;
@@ -329,6 +436,38 @@ function buildFMMetrics(p) {
   };
 }
 
+function buildPMMetrics(p) {
+  const {sigType,tone,Am1,Am2,Ac,fm1,fm2,kp,phi1,phi2,cycles,dutyCycle} = p;
+  const N=1200,T=cycles/fm1,dt=T/(N-1);
+  const r1=phi1*Math.PI/180,r2=phi2*Math.PI/180;
+  const msg=Array.from({length:N},(_,i)=>{
+    const ti=(i/(N-1))*T;
+    return Am1*generateSignalSample(sigType,TWO_PI*fm1*ti+r1,dutyCycle)+
+      (tone==="double"?Am2*generateSignalSample(sigType,TWO_PI*fm2*ti+r2,dutyCycle):0);
+  });
+  const peakMessage=Math.max(...msg.map(Math.abs));
+  const phaseDeviation=kp*peakMessage;
+  const discontinuous=sigType==="square"||sigType==="pulse"||sigType==="sawtooth";
+  let deltaF=0;
+  if(!discontinuous){
+    for(let i=1;i<N-1;i++){
+      deltaF=Math.max(deltaF,Math.abs(kp*(msg[i+1]-msg[i-1])/(TWO_PI*2*dt)));
+    }
+  }
+  const maxFm=tone==="double"?Math.max(fm1,fm2):fm1;
+  const bw=2*(deltaF+maxFm);
+  return {
+    Pt:((Ac**2)/2).toFixed(4),
+    phaseDeviation:phaseDeviation.toFixed(2)+" rad",
+    phaseDegrees:(phaseDeviation*180/Math.PI).toFixed(1)+"°",
+    deltaF:discontinuous?"Unbounded":(deltaF/1000).toFixed(2)+" kHz",
+    bw:discontinuous?"Unbounded":(bw/1000).toFixed(2)+" kHz",
+    kp:kp.toFixed(2)+" rad/V",
+    type:phaseDeviation<0.3?"Narrow phase deviation":"Wide phase deviation",
+    edgeLimited:discontinuous,
+  };
+}
+
 // ── Canvas helpers ───────────────────────────────────────────────────────────
 function drawPill(ctx,x,y,text,textColor,bgColor,borderColor,font){
   ctx.font=font;
@@ -340,7 +479,7 @@ function drawPill(ctx,x,y,text,textColor,bgColor,borderColor,font){
   ctx.fillText(text,x+9,y-ph/2+ph-6);
 }
 
-// ── Animated waveform renderer (shared AM+FM) ────────────────────────────────
+// ── Animated waveform renderer (shared AM+FM+PM) ─────────────────────────────
 function AnimatedWaves({params,speed,showEnv,waveConfigs,zoomLevel,panOffset,modType}) {
   const timeRef=useRef(0), rafRef=useRef(null), canvasRefs=useRef([]);
   const paramsRef=useRef(params), speedRef=useRef(speed);
@@ -351,7 +490,11 @@ function AnimatedWaves({params,speed,showEnv,waveConfigs,zoomLevel,panOffset,mod
   useEffect(()=>{panRef.current=panOffset;},[panOffset]);
 
   const stablePeaks = useMemo(()=>{
-    const s = modType==="fm" ? buildFMSignals(params,0) : buildAMSignals(params,0);
+    const s = modType==="fm"
+      ? buildFMSignals(params,0)
+      : modType==="pm"
+        ? buildPMSignals(params,0)
+        : buildAMSignals(params,0);
     return {
       msg:         Math.max(...s.msg.map(Math.abs),0.001),
       carrier:     Math.max(...s.carrier.map(Math.abs),0.001),
@@ -359,11 +502,13 @@ function AnimatedWaves({params,speed,showEnv,waveConfigs,zoomLevel,panOffset,mod
       envelope:    Math.max(...s.envelope.map(Math.abs),0.001),
       demodulated: Math.max(...s.demodulated.map(Math.abs),0.001),
       instFreq:    s.instFreq ? Math.max(...s.instFreq.map(Math.abs),0.001) : 0.001,
+      phaseDeviation:s.phaseDeviation ? Math.max(...s.phaseDeviation.map(Math.abs),0.001) : 0.001,
     };
   },[
     params.mode,params.tone,params.Am1,params.Am2,params.Ac,
     params.fm1,params.fm2,params.fc,params.mu1,params.mu2,
     params.beta1,params.beta2,
+    params.kp,
     params.phi1,params.phi2,params.sigType,params.dutyCycle,
     params.noiseOn,params.snrDb, modType,
   ]);
@@ -372,7 +517,9 @@ function AnimatedWaves({params,speed,showEnv,waveConfigs,zoomLevel,panOffset,mod
     const drawAll=()=>{
       const s = modType==="fm"
         ? buildFMSignals(paramsRef.current,timeRef.current)
-        : buildAMSignals(paramsRef.current,timeRef.current);
+        : modType==="pm"
+          ? buildPMSignals(paramsRef.current,timeRef.current)
+          : buildAMSignals(paramsRef.current,timeRef.current);
       const sp=speedRef.current, zoom=zoomRef.current, pan=panRef.current;
       canvasRefs.current.forEach((canvas,idx)=>{
         if(!canvas)return;
@@ -409,8 +556,9 @@ function AnimatedWaves({params,speed,showEnv,waveConfigs,zoomLevel,panOffset,mod
         ctx.beginPath();visData.forEach((v,i)=>i===0?ctx.moveTo(toX(i),toY(v)):ctx.lineTo(toX(i),toY(v)));
         ctx.stroke();ctx.shadowBlur=0;
         const PFONT="bold 14px 'Courier New',monospace";
-        drawPill(ctx,8,LABEL_ZONE/2,`+${peak.toFixed(4)} V`,cfg.color,"rgba(2,14,14,0.92)",cfg.color+"99",PFONT);
-        drawPill(ctx,8,H-LABEL_ZONE/2,`−${peak.toFixed(4)} V`,cfg.color,"rgba(2,14,14,0.92)",cfg.color+"99",PFONT);
+        const unit=cfg.unit||"V";
+        drawPill(ctx,8,LABEL_ZONE/2,`+${peak.toFixed(4)} ${unit}`,cfg.color,"rgba(2,14,14,0.92)",cfg.color+"99",PFONT);
+        drawPill(ctx,8,H-LABEL_ZONE/2,`−${peak.toFixed(4)} ${unit}`,cfg.color,"rgba(2,14,14,0.92)",cfg.color+"99",PFONT);
         // label pill
         const NFONT="bold 13px 'Courier New',monospace";
         ctx.font=NFONT;const nw=ctx.measureText(cfg.label).width+20,nh=26,nx=W-nw-8,ny=6;
@@ -494,58 +642,81 @@ function SpecCanvas({lines,accentColor="#22d3ee"}) {
 }
 
 // ── Phasor (AM) ──────────────────────────────────────────────────────────────
-function PhasorCanvas({mu,mode}) {
+function PhasorCanvas({params}) {
   const ref=useRef(null),raf=useRef(null),angle=useRef(0);
   useEffect(()=>{
     const canvas=ref.current;if(!canvas)return;
     const ctx=canvas.getContext("2d");
     const W=canvas.width,H=canvas.height,cx=W/2,cy=H/2,R=Math.min(W,H)/2-24;
+    const {mode,sigType,tone,Am1,Am2,Ac,fm1,fm2,mu1,mu2,phi1,phi2,dutyCycle}=params;
+    const r1=phi1*Math.PI/180,r2=phi2*Math.PI/180;
+    const drawVector=(length,phase,color,width=3,dashed=false)=>{
+      const ex=cx+length*Math.cos(phase),ey=cy-length*Math.sin(phase);
+      ctx.strokeStyle=color;ctx.lineWidth=width;ctx.shadowColor=color;ctx.shadowBlur=dashed?0:8;
+      if(dashed)ctx.setLineDash([5,5]);
+      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ex,ey);ctx.stroke();
+      ctx.setLineDash([]);ctx.shadowBlur=0;
+      ctx.fillStyle=color;ctx.beginPath();ctx.arc(ex,ey,4,0,TWO_PI);ctx.fill();
+    };
     const draw=()=>{
-      angle.current+=0.022;const a=angle.current;
+      angle.current+=0.018;
+      const a=angle.current,messagePhase=a/5;
+      const q1=generateSignalSample(sigType,messagePhase+r1,dutyCycle);
+      const q2=generateSignalSample(sigType,messagePhase*(fm2/fm1)+r2,dutyCycle);
+      const msg=Am1*q1+(tone==="double"?Am2*q2:0);
+      let iEnv,qEnv=0;
+      if(mode==="dsbfc"){
+        iEnv=Ac*(1+mu1*q1+(tone==="double"?mu2*q2:0));
+      }else if(mode==="dsbsc"){
+        iEnv=msg;
+      }else if(mode==="ssb"){
+        iEnv=msg/2;
+        qEnv=Am1*generateSignalSample(sigType,messagePhase+r1+Math.PI/2,dutyCycle)/2;
+      }else{
+        iEnv=(Am1/2)*Math.cos(messagePhase+r1)+(Am1/8)*Math.cos(messagePhase+r1);
+        qEnv=(Am1/2)*Math.sin(messagePhase+r1)-(Am1/8)*Math.sin(messagePhase+r1);
+      }
+      const maxEnvelope=Math.max(Ac*(1+mu1+(tone==="double"?mu2:0)),Am1+(tone==="double"?Am2:0),0.001);
+      const resultantLength=R*0.72*Math.hypot(iEnv,qEnv)/maxEnvelope;
+      const resultantPhase=a+Math.atan2(qEnv,iEnv);
       ctx.clearRect(0,0,W,H);ctx.fillStyle="#080f1a";ctx.fillRect(0,0,W,H);
       ctx.strokeStyle="#0d2828";ctx.lineWidth=1;
       ctx.beginPath();ctx.arc(cx,cy,R,0,TWO_PI);ctx.stroke();
       ctx.strokeStyle="#163030";
       ctx.beginPath();ctx.moveTo(cx-R-6,cy);ctx.lineTo(cx+R+6,cy);ctx.stroke();
       ctx.beginPath();ctx.moveTo(cx,cy-R-6);ctx.lineTo(cx,cy+R+6);ctx.stroke();
-      const cLen=R*0.68,ex=cx+cLen*Math.cos(a),ey=cy-cLen*Math.sin(a);
-      ctx.strokeStyle="#22d3ee";ctx.lineWidth=3;ctx.shadowColor="#22d3ee";ctx.shadowBlur=10;
-      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ex,ey);ctx.stroke();
-      ctx.fillStyle="#22d3ee";ctx.beginPath();ctx.arc(ex,ey,5,0,TWO_PI);ctx.fill();
-      ctx.shadowBlur=0;
-      if(mode==="dsbfc"||mode==="dsbsc"){
-        const sbLen=R*0.3*Math.min(Math.max(mu,0.1),1.5);
-        const usbX=ex+sbLen*Math.cos(2*a),usbY=ey-sbLen*Math.sin(2*a);
-        const lsbX=ex+sbLen,lsbY=ey;
-        ctx.strokeStyle="#f47266";ctx.lineWidth=2.5;ctx.shadowColor="#f47266";ctx.shadowBlur=6;
-        ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(usbX,usbY);ctx.stroke();
-        ctx.fillStyle="#f47266";ctx.beginPath();ctx.arc(usbX,usbY,4,0,TWO_PI);ctx.fill();
-        ctx.strokeStyle="#22d3ee";ctx.shadowColor="#22d3ee";
-        ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(lsbX,lsbY);ctx.stroke();
-        ctx.fillStyle="#22d3ee";ctx.beginPath();ctx.arc(lsbX,lsbY,4,0,TWO_PI);ctx.fill();
-        ctx.shadowBlur=0;
-      }
+      if(mode==="dsbfc")drawVector(R*0.72*Ac/maxEnvelope,a,"#475569",1.5,true);
+      drawVector(resultantLength,resultantPhase,mode==="vsb"?"#fbbf24":"#22d3ee");
+      ctx.font="bold 12px monospace";ctx.fillStyle="#22d3ee";ctx.textAlign="left";
+      ctx.fillText(mode==="dsbfc"?"● Carrier + resultant":"● Suppressed-carrier resultant",8,18);
+      ctx.fillStyle="#64748b";ctx.font="11px monospace";
+      ctx.fillText(`${sigType}${tone==="double"?" · double tone":""}`,8,34);
       raf.current=requestAnimationFrame(draw);
     };
     raf.current=requestAnimationFrame(draw);
     return()=>cancelAnimationFrame(raf.current);
-  },[mu,mode]);
+  },[params]);
   return <canvas ref={ref} width={320} height={320}
     style={{width:320,height:320,flexShrink:0,borderRadius:5,border:"1px solid #0d2828"}}/>;
 }
 
 // ── FM Phasor ────────────────────────────────────────────────────────────────
-function FMPhasorCanvas({beta}) {
-  const ref=useRef(null),raf=useRef(null),t=useRef(0);
+function FMPhasorCanvas({params}) {
+  const ref=useRef(null),raf=useRef(null),t=useRef(0),phase=useRef(0);
   useEffect(()=>{
     const canvas=ref.current;if(!canvas)return;
     const ctx=canvas.getContext("2d");
     const W=canvas.width,H=canvas.height,cx=W/2,cy=H/2,R=Math.min(W,H)/2-28;
+    const {sigType,tone,Am1,Am2,fm1,fm2,beta1,beta2,phi1,phi2,dutyCycle}=params;
+    const r1=phi1*Math.PI/180,r2=phi2*Math.PI/180;
     const draw=()=>{
       t.current+=0.018;
-      const fc_phase=t.current;
-      const fm_phase=t.current/5;
-      const inst_phase=fc_phase+beta*Math.sin(fm_phase);
+      const messagePhase=t.current/5;
+      const q1=generateSignalSample(sigType,messagePhase+r1,dutyCycle);
+      const q2=generateSignalSample(sigType,messagePhase*(fm2/fm1)+r2,dutyCycle);
+      phase.current+=0.018+beta1*Am1*q1*0.0036+
+        (tone==="double"?beta2*Am2*q2*(fm2/fm1)*0.0036:0);
+      const inst_phase=phase.current;
       ctx.clearRect(0,0,W,H);ctx.fillStyle="#080f1a";ctx.fillRect(0,0,W,H);
       // circle
       ctx.strokeStyle="#0d2828";ctx.lineWidth=1;
@@ -572,15 +743,67 @@ function FMPhasorCanvas({beta}) {
       ctx.font="bold 12px monospace";ctx.fillStyle="#a78bfa";ctx.textAlign="left";
       ctx.fillText("● FM Phasor",8,18);
       ctx.fillStyle="#475569";ctx.font="11px monospace";
-      ctx.fillText(`β = ${beta.toFixed(2)}`,8,34);
+      ctx.fillText(`${sigType}${tone==="double"?" · double tone":""}`,8,34);
       ctx.fillText("|A| = const",8,48);
       raf.current=requestAnimationFrame(draw);
     };
     raf.current=requestAnimationFrame(draw);
     return()=>cancelAnimationFrame(raf.current);
-  },[beta]);
+  },[params]);
   return <canvas ref={ref} width={320} height={320}
     style={{width:320,height:320,flexShrink:0,borderRadius:5,border:"1px solid #1a0d3a"}}/>;
+}
+
+// ── PM Phasor ────────────────────────────────────────────────────────────────
+function PMPhasorCanvas({params}) {
+  const ref=useRef(null),raf=useRef(null),t=useRef(0);
+  useEffect(()=>{
+    const canvas=ref.current;if(!canvas)return;
+    const ctx=canvas.getContext("2d");
+    const W=canvas.width,H=canvas.height,cx=W/2,cy=H/2,R=Math.min(W,H)/2-28;
+    const {sigType,tone,Am1,Am2,fm1,fm2,kp,phi1,phi2,dutyCycle}=params;
+    const r1=phi1*Math.PI/180,r2=phi2*Math.PI/180;
+    const draw=()=>{
+      t.current+=0.018;
+      const carrierPhase=t.current;
+      const messagePhase=t.current/5;
+      const message=
+        Am1*generateSignalSample(sigType,messagePhase+r1,dutyCycle)+
+        (tone==="double"?Am2*generateSignalSample(sigType,messagePhase*(fm2/fm1)+r2,dutyCycle):0);
+      const phaseShift=kp*message;
+      const modulatedPhase=carrierPhase+phaseShift;
+      ctx.clearRect(0,0,W,H);ctx.fillStyle="#080f1a";ctx.fillRect(0,0,W,H);
+      ctx.strokeStyle="#281020";ctx.lineWidth=1;
+      ctx.beginPath();ctx.arc(cx,cy,R,0,TWO_PI);ctx.stroke();
+      ctx.strokeStyle="#301628";
+      ctx.beginPath();ctx.moveTo(cx-R-6,cy);ctx.lineTo(cx+R+6,cy);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(cx,cy-R-6);ctx.lineTo(cx,cy+R+6);ctx.stroke();
+      const refX=cx+R*0.62*Math.cos(carrierPhase),refY=cy-R*0.62*Math.sin(carrierPhase);
+      ctx.strokeStyle="#475569";ctx.lineWidth=1.5;ctx.setLineDash([5,5]);
+      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(refX,refY);ctx.stroke();ctx.setLineDash([]);
+      const ex=cx+R*0.75*Math.cos(modulatedPhase),ey=cy-R*0.75*Math.sin(modulatedPhase);
+      ctx.strokeStyle="#f472b6";ctx.lineWidth=3;ctx.shadowColor="#f472b6";ctx.shadowBlur=12;
+      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ex,ey);ctx.stroke();
+      ctx.fillStyle="#f472b6";ctx.beginPath();ctx.arc(ex,ey,6,0,TWO_PI);ctx.fill();
+      ctx.shadowBlur=0;
+      if(!draw._trace)draw._trace=[];
+      draw._trace.push({x:ex,y:ey});
+      if(draw._trace.length>60)draw._trace.shift();
+      ctx.strokeStyle="rgba(244,114,182,0.35)";ctx.lineWidth=1.5;ctx.beginPath();
+      draw._trace.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.stroke();
+      ctx.font="bold 12px monospace";ctx.fillStyle="#f472b6";ctx.textAlign="left";
+      ctx.fillText("● PM Phasor",8,18);
+      ctx.fillStyle="#64748b";ctx.font="11px monospace";
+      ctx.fillText(`${sigType}${tone==="double"?" · double tone":""}`,8,34);
+      ctx.fillText(`Δφ = ${phaseShift.toFixed(2)} rad`,8,48);
+      ctx.fillText("|A| = const",8,62);
+      raf.current=requestAnimationFrame(draw);
+    };
+    raf.current=requestAnimationFrame(draw);
+    return()=>cancelAnimationFrame(raf.current);
+  },[params]);
+  return <canvas ref={ref} width={320} height={320}
+    style={{width:320,height:320,flexShrink:0,borderRadius:5,border:"1px solid #3a1028"}}/>;
 }
 
 // ── Demod theory panels ───────────────────────────────────────────────────────
@@ -619,6 +842,27 @@ function FMDemodTheory() {
       {steps.map((s,i)=>(
         <div key={i} style={{display:"flex",gap:12,marginBottom:9,fontSize:12,color:"#9a8acd",lineHeight:1.6}}>
           <span style={{color:"#a78bfa",flexShrink:0,fontWeight:"bold",minWidth:52}}>Step {i+1}.</span>
+          <span>{s}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PMDemodTheory() {
+  const steps=[
+    "Limiter — suppresses amplitude variations before phase recovery",
+    "Carrier recovery / PLL — establishes the unmodulated carrier phase reference",
+    "Phase detector — produces voltage proportional to Δφ(t) = kp · m(t)",
+    "Low-pass filter — removes detector ripple and out-of-band noise",
+    "Scale by 1/kp — recovered output m′(t) = Δφ(t)/kp ≈ m(t)",
+  ];
+  return(
+    <div style={{background:"#10050b",border:"1px solid #f472b635",borderRadius:7,padding:16,marginTop:12}}>
+      <div style={{color:"#f472b6",fontSize:13,fontWeight:"bold",marginBottom:12,letterSpacing:1}}>PM Demodulation — Coherent Phase Detector / PLL</div>
+      {steps.map((s,i)=>(
+        <div key={i} style={{display:"flex",gap:12,marginBottom:9,fontSize:12,color:"#bd789e",lineHeight:1.6}}>
+          <span style={{color:"#f472b6",flexShrink:0,fontWeight:"bold",minWidth:52}}>Step {i+1}.</span>
           <span>{s}</span>
         </div>
       ))}
@@ -969,7 +1213,7 @@ function AMToolbox({onBack}) {
             )}
             {tab==="phasor"&&(
               <div style={{display:"flex",gap:24,alignItems:"flex-start",flexWrap:"wrap"}}>
-                <PhasorCanvas mu={muDisp} mode={mode}/>
+                <PhasorCanvas params={params}/>
                 <div style={{flex:1,minWidth:260}}>
                   <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:14,fontWeight:"bold"}}>PHASOR REPRESENTATION</div>
                   <div style={{fontSize:13,color:"#94a3b8",lineHeight:2.1}}>
@@ -1287,7 +1531,7 @@ function FMToolbox({onBack}) {
 
             {tab==="phasor"&&(
               <div style={{display:"flex",gap:24,alignItems:"flex-start",flexWrap:"wrap"}}>
-                <FMPhasorCanvas beta={beta1}/>
+                <FMPhasorCanvas params={params}/>
                 <div style={{flex:1,minWidth:260}}>
                   <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:14,fontWeight:"bold"}}>FM PHASOR — KEY PROPERTY</div>
                   <div style={{fontSize:13,color:"#9a8acd",lineHeight:2.1}}>
@@ -1328,20 +1572,299 @@ function FMToolbox({onBack}) {
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// PM TOOLBOX
+// ══════════════════════════════════════════════════════════════════════════════
+function PMToolbox({onBack}) {
+  const isMobile=useIsMobile();
+  const [sidebarOpen,setSidebarOpen]=useState(false);
+  const [tone,setTone]=useState("single");
+  const [tab,setTab]=useState("time");
+  const [cycles,setCycles]=useState(4);
+  const [animSpeed,setAnimSpeed]=useState(1);
+  const [sigType,setSigType]=useState("sine");
+  const [dutyCycle,setDutyCycle]=useState(0.5);
+  const [zoomLevel,setZoomLevel]=useState(1);
+  const [panOffset,setPanOffset]=useState(0);
+  const [noiseOn,setNoiseOn]=useState(false);
+  const [snrDb,setSnrDb]=useState(20);
+  const [Am1,setAm1]=useState(1.0);const [Am2,setAm2]=useState(0.5);
+  const [Ac,setAc]=useState(2.0);
+  const [fm1,setFm1]=useState(1000);const [fm2,setFm2]=useState(1500);
+  const [fc,setFc]=useState(10000);
+  const [kp,setKp]=useState(2.0);
+  const [phi1,setPhi1]=useState(0);const [phi2,setPhi2]=useState(0);
+
+  const params={sigType,tone,Am1,Am2,Ac,fm1,fm2,fc,kp,phi1,phi2,cycles,dutyCycle,snrDb,noiseOn};
+  const specLines=useMemo(()=>buildPMSpectrum(params),[sigType,tone,Am1,Am2,Ac,fm1,fm2,fc,kp,phi1,phi2,cycles,dutyCycle]);
+  const metrics=useMemo(()=>buildPMMetrics(params),[sigType,tone,Am1,Am2,Ac,fm1,fm2,kp,phi1,phi2,cycles,dutyCycle]);
+  const sigColor=SIG_TYPES.find(s=>s.id===sigType)?.color||"#f472b6";
+  const ACCENT="#f472b6";
+
+  const handleZoomIn=useCallback(()=>setZoomLevel(z=>Math.min(z*2,32)),[]);
+  const handleZoomOut=useCallback(()=>setZoomLevel(z=>{const n=Math.max(z/2,1);if(n===1)setPanOffset(0);return n;}),[]);
+  const handleZoomReset=useCallback(()=>{setZoomLevel(1);setPanOffset(0);},[]);
+  const handlePanLeft=useCallback(()=>setPanOffset(p=>Math.max(0,p-0.08/zoomLevel)),[zoomLevel]);
+  const handlePanRight=useCallback(()=>setPanOffset(p=>Math.min(1-1/zoomLevel,p+0.08/zoomLevel)),[zoomLevel]);
+  const zoomContainerRef=useRef(null);
+  useEffect(()=>{
+    const el=zoomContainerRef.current;if(!el)return;
+    const fn=e=>{e.preventDefault();
+      if(e.deltaY<0)setZoomLevel(z=>Math.min(z*1.25,32));
+      else setZoomLevel(z=>{const n=Math.max(z/1.25,1);if(n<=1.01)setPanOffset(0);return n;});};
+    el.addEventListener("wheel",fn,{passive:false});return()=>el.removeEventListener("wheel",fn);
+  },[]);
+
+  const timeWaves=useMemo(()=>[
+    {key:"msg",label:`m(t) — Message [${SIG_TYPES.find(s=>s.id===sigType)?.label}]`,color:sigColor,height:140},
+    {key:"carrier",label:"c(t) — Unmodulated Carrier",color:"#8a456c",height:120},
+    {key:"modulated",label:"s(t) — PM Modulated Signal",color:ACCENT,height:170},
+    {key:"phaseDeviation",label:"Δφ(t) — Phase Deviation (rad)",color:"#fbbf24",height:130,unit:"rad"},
+    {key:"instFreq",label:"fi(t) — Instantaneous Frequency",color:"#4ade80",height:130,unit:"Hz"},
+  ],[sigType,sigColor]);
+  const demodWaves=useMemo(()=>[
+    {key:"modulated",label:"s(t) — Received PM Signal",color:ACCENT,height:150},
+    {key:"phaseDeviation",label:"Δφ(t) — Phase Detector Output",color:"#fbbf24",height:130,unit:"rad"},
+    {key:"demodulated",label:"m′(t) — Recovered Message",color:sigColor,height:140},
+    {key:"msg",label:"m(t) — Original Reference",color:sigColor+"55",height:120},
+  ],[sigColor]);
+
+  const sidebarJSX=(
+    <>
+      <div style={{marginBottom:14}}>
+        <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:8,fontWeight:"bold"}}>TYPE</div>
+        <div style={{background:"#14050d",border:`1px solid ${ACCENT}30`,borderRadius:8,padding:"10px 12px"}}>
+          <div style={{color:ACCENT,fontSize:12,fontWeight:"bold",marginBottom:4}}>{metrics.type}</div>
+          <div style={{color:"#64748b",fontSize:11}}>Peak Δφ = {metrics.phaseDeviation}</div>
+        </div>
+      </div>
+      <div style={{marginBottom:14}}>
+        <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:8,fontWeight:"bold"}}>TONE TYPE</div>
+        <div style={{display:"flex",gap:6}}>
+          {[["single","Single"],["double","Double"]].map(([v,l])=>(
+            <button key={v} onClick={()=>setTone(v)} style={{
+              flex:1,padding:"8px 4px",cursor:"pointer",borderRadius:8,
+              background:tone===v?`${ACCENT}18`:"transparent",
+              border:`1px solid ${tone===v?ACCENT+"55":"#1e2a3a"}`,
+              color:tone===v?ACCENT:"#64748b",fontSize:12,fontWeight:700,fontFamily:"monospace"}}>{l}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{marginBottom:14,background:"#0b0f1a",border:"1px solid #1e2a3a",borderRadius:8,padding:"10px 12px 8px"}}>
+        <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:8,fontWeight:"bold"}}>ANIMATION</div>
+        <Slider label="Scroll Speed" val={animSpeed} min={0} max={10} step={0.5} unit="×" onChange={setAnimSpeed} color={animSpeed===0?"#fbbf24":"#4ade80"}/>
+        <div style={{fontSize:11,color:animSpeed===0?"#fbbf24":"#4ade80",marginTop:-2,marginBottom:4}}>{animSpeed===0?"⏸ Frozen":`▶ Live  ${animSpeed}×`}</div>
+      </div>
+      <div style={{borderTop:"1px solid #1e2a3a",paddingTop:12,marginBottom:8}}>
+        <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:8,fontWeight:"bold"}}>CARRIER</div>
+        <Slider label="Ac — Amplitude" val={Ac} min={0.5} max={5} step={0.1} unit=" V" onChange={setAc} color={ACCENT}/>
+        <Slider label="fc — Frequency" val={fc} min={2000} max={50000} step={500} unit=" Hz" onChange={setFc} color={ACCENT}/>
+        <Slider label="kp — Phase Sensitivity" val={kp} min={0.1} max={10} step={0.1} unit=" rad/V" onChange={setKp} color={ACCENT}/>
+      </div>
+      <div style={{borderTop:"1px solid #1e2a3a",paddingTop:12,marginBottom:8}}>
+        <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:8,fontWeight:"bold"}}>MESSAGE 1</div>
+        <Slider label="Am₁ — Amplitude" val={Am1} min={0.1} max={5} step={0.1} unit=" V" onChange={setAm1} color="#f47266"/>
+        <Slider label="fm₁ — Frequency" val={fm1} min={100} max={5000} step={50} unit=" Hz" onChange={setFm1} color="#f47266"/>
+        <Slider label="φ₁ — Phase" val={phi1} min={-180} max={180} step={5} unit="°" onChange={setPhi1} color="#f47266"/>
+        <div style={{fontSize:10,color:"#f47266",marginTop:-4,marginBottom:6}}>Peak Δφ₁ = {(kp*Am1).toFixed(2)} rad</div>
+      </div>
+      {tone==="double"&&(
+        <div style={{borderTop:"1px solid #1e2a3a",paddingTop:12,marginBottom:8}}>
+          <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:8,fontWeight:"bold"}}>MESSAGE 2</div>
+          <Slider label="Am₂ — Amplitude" val={Am2} min={0.1} max={5} step={0.1} unit=" V" onChange={setAm2} color="#fbbf24"/>
+          <Slider label="fm₂ — Frequency" val={fm2} min={100} max={5000} step={50} unit=" Hz" onChange={setFm2} color="#fbbf24"/>
+          <Slider label="φ₂ — Phase" val={phi2} min={-180} max={180} step={5} unit="°" onChange={setPhi2} color="#fbbf24"/>
+          <div style={{fontSize:10,color:"#fbbf24",marginTop:-4,marginBottom:6}}>Peak Δφ₂ = {(kp*Am2).toFixed(2)} rad</div>
+        </div>
+      )}
+      <div style={{borderTop:"1px solid #1e2a3a",paddingTop:12}}>
+        <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:8,fontWeight:"bold"}}>DISPLAY</div>
+        <Slider label="Cycles Shown" val={cycles} min={1} max={10} step={1} unit="" onChange={setCycles} color={ACCENT}/>
+      </div>
+    </>
+  );
+
+  return(
+    <div style={{minHeight:"100vh",width:"100%",background:"#0b0f1a",color:"#dac0d0",
+      fontFamily:"'Courier New',monospace",boxSizing:"border-box",overflowX:"hidden"}}>
+      <div style={{padding:isMobile?"10px 12px 24px":"16px 28px 40px",width:"100%",boxSizing:"border-box"}}>
+        <div style={{marginBottom:20,paddingBottom:12,borderBottom:"1px solid #1e2a3a",
+          display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:14}}>
+            <button onClick={onBack} style={{background:"#131929",border:"1px solid #1e2a3a",borderRadius:8,
+              padding:"7px 16px",cursor:"pointer",color:"#64748b",fontSize:13}}>← Back</button>
+            <div>
+              <h1 style={{margin:0,fontSize:isMobile?16:22,fontWeight:900,
+                background:"linear-gradient(135deg,#f472b6,#fbbf24)",
+                WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:2}}>∿ PM SIGNAL TOOLBOX</h1>
+              <div style={{color:ACCENT,fontSize:13,fontWeight:"bold",letterSpacing:3,marginTop:2}}>APURBA MAITY</div>
+            </div>
+          </div>
+          {isMobile&&(
+            <button onClick={()=>setSidebarOpen(o=>!o)} style={{
+              background:sidebarOpen?`${ACCENT}18`:"#131929",border:`1px solid ${sidebarOpen?ACCENT+"66":"#1e2a3a"}`,
+              borderRadius:8,padding:"8px 18px",cursor:"pointer",color:sidebarOpen?ACCENT:"#64748b",fontSize:13,fontWeight:700}}>
+              {sidebarOpen?"✕ Close":"⚙ Controls"}
+            </button>
+          )}
+        </div>
+        {isMobile&&sidebarOpen&&(
+          <div style={{background:"#0f1623",border:"1px solid #1e2a3a",borderRadius:12,padding:16,marginBottom:16}}>{sidebarJSX}</div>
+        )}
+        <div style={{display:"flex",gap:20,alignItems:"flex-start",flexDirection:isMobile?"column":"row"}}>
+          {!isMobile&&(
+            <div style={{width:264,flexShrink:0,background:"#0f1623",borderRadius:12,border:"1px solid #1e2a3a",
+              padding:16,overflowY:"auto",maxHeight:"calc(100vh - 100px)",position:"sticky",top:16,boxSizing:"border-box"}}>{sidebarJSX}</div>
+          )}
+          <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:16}}>
+            <div style={{display:"flex",gap:14,flexWrap:"wrap",alignItems:"stretch"}}>
+              <div style={{background:"#0f1623",border:"1px solid #1e2a3a",borderRadius:12,padding:"14px 18px",flex:"2 1 400px"}}>
+                <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:12,fontWeight:"bold"}}>MESSAGE SIGNAL SHAPE</div>
+                <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
+                  {SIG_TYPES.map(({id,label,color})=>(
+                    <div key={id} onClick={()=>setSigType(id)} style={{
+                      cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:6,
+                      background:sigType===id?`${color}15`:"transparent",border:`1px solid ${sigType===id?color+"66":"#1e2a3a"}`,
+                      borderRadius:10,padding:"10px 12px",transition:"all 0.15s",minWidth:100}}>
+                      <SignalPreview type={id} color={color} dutyCycle={dutyCycle}/>
+                      <span style={{color:sigType===id?color:"#475569",fontSize:12,fontWeight:"bold",fontFamily:"monospace"}}>{label}</span>
+                    </div>
+                  ))}
+                </div>
+                {sigType==="pulse"&&<div style={{marginTop:12,maxWidth:360}}>
+                  <Slider label="Duty Cycle" val={dutyCycle} min={0.05} max={0.95} step={0.05} unit="" onChange={setDutyCycle} color={ACCENT}/>
+                </div>}
+              </div>
+              <div style={{background:"#0f1623",border:`1px solid ${noiseOn?"#f4726644":"#1e2a3a"}`,borderRadius:12,padding:"14px 18px",flex:"1 1 220px"}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                  <div style={{color:"#64748b",fontSize:10,letterSpacing:2,fontWeight:"bold"}}>AWGN NOISE</div>
+                  <label style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer"}}>
+                    <input type="checkbox" checked={noiseOn} onChange={e=>setNoiseOn(e.target.checked)} style={{accentColor:"#f47266"}}/>
+                    <span style={{color:noiseOn?"#f47266":"#475569",fontSize:11,fontWeight:"bold"}}>{noiseOn?"ENABLED":"OFF"}</span>
+                  </label>
+                </div>
+                {noiseOn&&<>
+                  <Slider label="SNR (dB)" val={snrDb} min={0} max={40} step={1} unit=" dB" onChange={setSnrDb} color="#f47266"/>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>{[0,5,10,20,30,40].map(v=>(
+                    <button key={v} onClick={()=>setSnrDb(v)} style={{...btnStyle(snrDb===v,"#f47266"),fontSize:10,padding:"3px 9px"}}>{v}dB</button>
+                  ))}</div>
+                  <div style={{fontSize:11,fontWeight:"bold",color:snrDb<5?"#f47266":snrDb<15?"#fbbf24":"#4ade80"}}>
+                    {snrDb<5?"⚠ Severe":snrDb<10?"⚠ Very noisy":snrDb<20?"△ Moderate":snrDb<30?"◎ Acceptable":"✓ Clean"}
+                  </div>
+                </>}
+                {!noiseOn&&<div style={{color:"#334155",fontSize:12,lineHeight:1.7}}>Enable to inject<br/>Additive White Gaussian Noise</div>}
+              </div>
+            </div>
+
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              <MCard label="Total Power" val={metrics.Pt+" W"} color={ACCENT} sub="Pt = Ac²/2 (constant)"/>
+              <MCard label="Peak Phase Dev." val={metrics.phaseDeviation} color={ACCENT} sub={metrics.phaseDegrees}/>
+              <MCard label="Peak Freq Dev." val={metrics.deltaF} color="#4ade80" sub={metrics.edgeLimited?"Ideal discontinuity: unbounded":"Δf = (kp/2π)·max|dm/dt|"}/>
+              <MCard label="Approx. Carson BW" val={metrics.bw} color="#fbbf24" sub={metrics.edgeLimited?"Requires finite rise-time model":"BW ≈ 2(Δf + fm,max)"}/>
+              <MCard label="Sensitivity kp" val={metrics.kp} color="#f47266" sub="Δφ(t) = kp·m(t)"/>
+              <MCard label="Efficiency" val="100%" color="#4ade80" sub="Constant envelope"/>
+            </div>
+
+            <div style={{background:"#14050d",border:`1px solid ${ACCENT}25`,borderRadius:10,padding:"12px 18px",fontSize:12,color:"#b8759a",lineHeight:1.9}}>
+              <strong style={{color:ACCENT}}>PM Signal: </strong>s(t) = Ac · cos(2πfc·t + kp·m(t))
+              &nbsp;&nbsp;&nbsp;<strong style={{color:"#4ade80"}}>inst. freq: </strong>fi(t) = fc + (kp/2π)·dm(t)/dt
+              &nbsp;&nbsp;&nbsp;<strong style={{color:"#fbbf24"}}>peak Δφ: </strong>{metrics.phaseDeviation}
+            </div>
+
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {[["time","⟟ TIME DOMAIN"],["spectrum","⟝ SPECTRUM"],["phasor","⊙ PHASOR"],["demod","⟒ DEMOD LAB"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setTab(v)} style={btnStyle(tab===v,ACCENT)}>{l}</button>
+              ))}
+            </div>
+
+            {tab==="time"&&(
+              <div>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap",
+                  background:"#0f1623",border:"1px solid #1e2a3a",borderRadius:10,padding:"10px 16px"}}>
+                  <span style={{color:"#64748b",fontSize:10,letterSpacing:1,fontWeight:"bold"}}>TIME DOMAIN · PM SIGNAL, PHASE, AND INSTANTANEOUS FREQUENCY</span>
+                  <div style={{flex:1,height:1,background:"#1e2a3a",minWidth:20}}/>
+                  <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                    <button onClick={handleZoomOut} style={{...btnStyle(false,ACCENT),padding:"4px 12px",fontSize:16,lineHeight:1}}>−</button>
+                    <div style={{background:"#0b0f1a",border:"1px solid #1e2a3a",borderRadius:6,padding:"4px 14px",minWidth:60,textAlign:"center",color:ACCENT,fontSize:13,fontWeight:"bold"}}>{zoomLevel.toFixed(1)}×</div>
+                    <button onClick={handleZoomIn} style={{...btnStyle(false,ACCENT),padding:"4px 12px",fontSize:16,lineHeight:1}}>+</button>
+                    <button onClick={handleZoomReset} style={{...btnStyle(zoomLevel===1,ACCENT),padding:"4px 12px",fontSize:10}}>RESET</button>
+                  </div>
+                  {zoomLevel>1&&<div style={{display:"flex",gap:4,alignItems:"center"}}>
+                    <span style={{color:"#475569",fontSize:10}}>PAN</span>
+                    <button onClick={handlePanLeft} style={{...btnStyle(false,ACCENT),padding:"4px 12px",fontSize:14}}>◀</button>
+                    <div style={{background:"#0b0f1a",border:"1px solid #1e2a3a",borderRadius:4,padding:"4px 10px",minWidth:50,textAlign:"center",color:"#94a3b8",fontSize:10}}>{(panOffset*100).toFixed(0)}%</div>
+                    <button onClick={handlePanRight} style={{...btnStyle(false,ACCENT),padding:"4px 12px",fontSize:14}}>▶</button>
+                  </div>}
+                </div>
+                <div ref={zoomContainerRef}>
+                  <AnimatedWaves params={params} speed={animSpeed} showEnv={false} waveConfigs={timeWaves} zoomLevel={zoomLevel} panOffset={panOffset} modType="pm"/>
+                </div>
+              </div>
+            )}
+
+            {tab==="spectrum"&&(
+              <div>
+                <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:12,fontWeight:"bold"}}>FREQUENCY DOMAIN · NUMERICAL PM COMPLEX-ENVELOPE SPECTRUM</div>
+                <SpecCanvas lines={specLines} accentColor={ACCENT}/>
+                <div style={{marginTop:12,background:"#14050d",border:`1px solid ${ACCENT}25`,borderRadius:10,padding:"12px 18px",fontSize:12,color:"#a8688c",lineHeight:1.9}}>
+                  <div><strong style={{color:ACCENT}}>PM spectrum: </strong>Fourier coefficients of exp(j·kp·m(t)), shifted to fc</div>
+                  <div><strong style={{color:"#fbbf24"}}>Supports: </strong>single/double tone, phase offsets, and all available message waveforms</div>
+                  <div><strong style={{color:"#4ade80"}}>Approx. bandwidth: </strong>{metrics.bw}</div>
+                </div>
+                <div style={{marginTop:10,display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {specLines.slice(0,10).map((l,i)=>(
+                    <div key={i} style={{background:"#0f1623",border:`1px solid ${l.color}30`,borderRadius:8,padding:"7px 12px",fontSize:11}}>
+                      <span style={{color:l.color,fontWeight:"bold"}}>{l.label}</span>
+                      <span style={{color:"#64748b",marginLeft:8}}>{(l.f/1000).toFixed(2)} kHz</span>
+                      <span style={{color:"#475569",marginLeft:8}}>A={l.amp.toFixed(3)}</span>
+                    </div>
+                  ))}
+                  {specLines.length>10&&<div style={{color:"#475569",fontSize:11,padding:"7px 12px"}}>+{specLines.length-10} more lines</div>}
+                </div>
+              </div>
+            )}
+
+            {tab==="phasor"&&(
+              <div style={{display:"flex",gap:24,alignItems:"flex-start",flexWrap:"wrap"}}>
+                <PMPhasorCanvas params={params}/>
+                <div style={{flex:1,minWidth:260}}>
+                  <div style={{color:"#64748b",fontSize:10,letterSpacing:2,marginBottom:14,fontWeight:"bold"}}>PM PHASOR — DIRECT PHASE DEVIATION</div>
+                  <div style={{fontSize:13,color:"#bd789e",lineHeight:2.1}}>
+                    <div style={{color:ACCENT,fontWeight:"bold",marginBottom:8}}>PM has constant amplitude; message amplitude directly rotates the carrier phase</div>
+                    <div>s(t) = Ac · cos(φ(t))</div>
+                    <div style={{paddingLeft:20,color:"#f47266"}}>φ(t) = 2πfc·t + kp·m(t)</div>
+                    <div style={{marginTop:10,color:"#fbbf24"}}>Δφ(t) = kp·m(t), peak = {metrics.phaseDeviation}</div>
+                    <div style={{color:"#4ade80"}}>fi(t) − fc = (kp/2π)·dm(t)/dt</div>
+                    <div style={{marginTop:10,color:"#94a3b8"}}>Unlike FM, phase follows m(t) directly; frequency follows its slope.</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {tab==="demod"&&(
+              <div>
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12,
+                  background:"#0f1623",border:"1px solid #1e2a3a",borderRadius:10,padding:"10px 16px",flexWrap:"wrap"}}>
+                  <span style={{color:"#64748b",fontSize:10,letterSpacing:1,fontWeight:"bold"}}>PM DEMODULATION LAB · COHERENT PHASE DETECTOR / PLL</span>
+                  <div style={{flex:1,height:1,background:"#1e2a3a",minWidth:20}}/>
+                </div>
+                <AnimatedWaves params={params} speed={animSpeed} showEnv={false} waveConfigs={demodWaves} zoomLevel={1} panOffset={0} modType="pm"/>
+                <PMDemodTheory/>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Root ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const [domain,setDomain]=useState(null);
   if (!domain) return <LandingScreen onSelect={setDomain}/>;
   if (domain==="am") return <AMToolbox onBack={()=>setDomain(null)}/>;
   if (domain==="fm") return <FMToolbox onBack={()=>setDomain(null)}/>;
-  return(
-    <div style={{minHeight:"100vh",background:"#0b0f1a",display:"flex",flexDirection:"column",
-      alignItems:"center",justifyContent:"center",fontFamily:"'Segoe UI',system-ui,sans-serif",color:"#64748b"}}>
-      <div style={{fontSize:52,marginBottom:20}}>∿</div>
-      <div style={{fontSize:22,fontWeight:800,color:"#e2e8f0",marginBottom:8}}>PM Toolbox — Coming Soon</div>
-      <div style={{fontSize:13,marginBottom:32,opacity:0.5}}>Building this next...</div>
-      <button onClick={()=>setDomain(null)} style={{background:"#131929",border:"1px solid #1e2a3a",
-        borderRadius:10,padding:"10px 28px",cursor:"pointer",color:"#e2e8f0",fontSize:14}}>← Back to Menu</button>
-    </div>
-  );
+  if (domain==="pm") return <PMToolbox onBack={()=>setDomain(null)}/>;
+  return null;
 }
