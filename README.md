@@ -1,109 +1,144 @@
 # Analog Communication Signal Toolbox
 
-An interactive educational toolbox for exploring analog modulation techniques and signal behavior in real time.
+An interactive web-based educational platform for studying Analog Communication Systems through real-time visualization, spectrum analysis, phasor diagrams, noise simulation, and demodulation experiments.
 
-The application provides waveform visualization, spectral analysis, phasor representation, demodulation demonstrations, and noise simulation in a modern React-based interface.
+## Overview
 
-Currently implemented:
+The Analog Communication Signal Toolbox is designed to help students understand analog modulation techniques beyond textbook equations. The application provides real-time signal generation and visualization for Amplitude Modulation (AM), Frequency Modulation (FM), and Phase Modulation (PM).
 
-- Amplitude Modulation (AM)
-  - DSB-FC
-  - DSB-SC
-  - SSB (USB)
-  - VSB
-  
-Future modules:
+Users can modify carrier and message parameters, observe waveform behavior, analyze spectra, visualize phasors, simulate channel noise, and study demodulation performance through an integrated virtual communication laboratory.
 
-- Frequency Modulation (FM)
-- Phase Modulation (PM)
+---
 
 ## Features
 
-### Modulation Modes
+### Amplitude Modulation (AM)
 
-- Double Sideband Full Carrier (DSB-FC)
-- Double Sideband Suppressed Carrier (DSB-SC)
-- Single Sideband (SSB)
-- Vestigial Sideband (VSB)
+Supported schemes:
 
-### Message Signal Generation
+* DSB-FC (Double Sideband Full Carrier)
+* DSB-SC (Double Sideband Suppressed Carrier)
+* SSB (Single Sideband)
+* VSB (Vestigial Sideband)
 
-Supports multiple message signal shapes:
+Capabilities:
 
-- Sine
-- Square
-- Triangle
-- Sawtooth
-- Pulse
+* Real-time waveform visualization
+* Spectrum analysis
+* Phasor representation
+* Modulation index calculations
+* Envelope observation
+* Demodulation laboratory
 
-### Real-Time Waveform Visualization
+---
 
-View:
-- Message signal
-- Carrier signal
-- Modulated signal
-- Envelope waveform
-- Demodulated output
+### Frequency Modulation (FM)
 
-Features include:
+Capabilities:
 
-- Live animation
-- Zoom controls
-- Pan controls
-- Envelope display
-- Responsive scaling
+* Single-tone and double-tone modulation
+* Instantaneous frequency visualization
+* Frequency deviation calculations
+* Carson bandwidth estimation
+* Spectrum analysis
+* Noise simulation
+* Demodulation laboratory
 
-### Frequency Spectrum Analysis
+---
 
-Visualize:
-- Carrier component
-- Upper sideband (USB)
-- Lower sideband (LSB)
-- Spectral amplitudes
-- Signal bandwidth
+### Phase Modulation (PM)
 
-### Phasor Representation
+Capabilities:
+
+* Single-tone and double-tone modulation
+* Phase deviation calculations
+* Instantaneous frequency visualization
+* Spectrum analysis
+* Phasor visualization
+* Noise simulation
+* Demodulation laboratory
+
+---
+
+### Message Signal Support
+
+Supported message waveforms:
+
+* Sine
+* Square
+* Triangle
+* Sawtooth
+* Pulse
+
+Supported configurations:
+
+* Single-tone
+* Double-tone
+
+---
+
+### Spectrum Analyzer
+
+The toolbox provides real-time frequency-domain visualization including:
+
+* Carrier component
+* Upper sidebands
+* Lower sidebands
+* Harmonic behavior
+* FM and PM spectral expansion
+* Bandwidth estimation
+
+---
+
+### Phasor Visualization
 
 Interactive phasor diagrams help visualize:
 
-- Carrier vector
-- Sideband vectors
-- Modulation behavior
+* Carrier behavior
+* Sideband interaction
+* Resultant signal formation
+* Phase variation
+* Modulation dynamics
 
-### Demodulation Laboratory
-
-Explore practical demodulation concepts:
-
-- Envelope Detection
-- Coherent Detection
-- Synchronous Detection
-- VSB Equalization Concepts
+---
 
 ### Noise Simulation
 
-Add Additive White Gaussian Noise (AWGN):
+The toolbox includes Additive White Gaussian Noise (AWGN) simulation.
 
-- Adjustable SNR
-- Observe waveform degradation
-- Study demodulation performance under noise
+Features:
 
-### Performance Metrics
+* Adjustable Signal-to-Noise Ratio (SNR)
+* Channel impairment visualization
+* Noise propagation through the communication chain
+* Impact on recovered signals
 
-The toolbox calculates:
+---
 
-- Total Power
-- Carrier Power
-- Modulation Index
-- Transmission Efficiency
-- Signal Bandwidth
+### Demodulation Laboratory
+
+Allows comparison between:
+
+* Original message signal
+* Received signal
+* Recovered signal
+
+Users can observe:
+
+* Distortion effects
+* Noise influence
+* Recovery quality
+* Communication-system performance
+
+---
 
 ## Technologies Used
 
-- React
-- Vite
-- JavaScript
-- HTML5 Canvas
-- CSS
+* React
+* JavaScript (ES6)
+* Vite
+* HTML5 Canvas
+* CSS
 
 ---
 
@@ -113,23 +148,76 @@ Clone the repository:
 
 ```bash
 git clone https://github.com/SecretiveCodeRunner/Analog-Modulation-Toolbox.git
+```
+
+Navigate to the project directory:
+
+```bash
 cd Analog-Modulation-Toolbox
+```
+
+Install dependencies:
+
+```bash
 npm install
+```
+
+Start the development server:
+
+```bash
+npm run dev
+```
+
+---
+
+## Production Build
+
+```bash
 npm run build
+```
+
+Preview the production build:
+
+```bash
 npm run preview
 ```
-##Educational Purpose
 
-This project was developed as a learning and visualization tool for students studying:
+---
 
-Analog Communication
-Communication Systems
-Electronic Communication Engineering
-Signal Processing
+## Educational Applications
 
-The goal is to provide an intuitive and interactive environment for understanding modulation techniques beyond traditional textbook diagrams.
+This toolbox can be used for:
 
+* Communication Systems laboratories
+* Engineering coursework
+* Classroom demonstrations
+* Self-learning
+* Academic projects
+* Spectrum analysis demonstrations
+* Modulation and demodulation experiments
 
-Author:
-Apurba Maity,
+---
+
+## Future Enhancements
+
+Potential future additions:
+
+* Digital modulation techniques
+* FFT-based spectrum engine
+* Signal export functionality
+* Additional channel models
+* Advanced communication-system experiments
+
+---
+
+## Author
+
+Apurba Maity
+
 Electronics and Communication Engineering
+
+---
+
+## License
+
+This project is intended for educational and academic use.
